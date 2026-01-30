@@ -119,6 +119,7 @@
       - Bryan Wong
       - Bria Young
       - Camryn Brown
+      - Maya Carp
     ]
   )
 ]
