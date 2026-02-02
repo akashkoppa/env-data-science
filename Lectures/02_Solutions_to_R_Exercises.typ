@@ -605,7 +605,7 @@ for (i in seq_along(stations)) {
   station_summaries[[i]] <- tibble(
     station = stations[i],
     mean_temp = mean(st_data$temp_c, na.rm = TRUE),
-    count = n()
+    count = nrow(st_data)
   )
 }
 final_results <- bind_rows(station_summaries)

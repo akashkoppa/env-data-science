@@ -166,7 +166,7 @@ researcher_data <- water_data |>
     between(temp_c, 24, 26),
     !is.na(do_mg_l)
   ) |>
-  select(everything(), dissolved_oxygen = do_mg_l) # Rename
+  select(station, date, temp_c, dissolved_oxygen = do_mg_l)
 
 print("Researcher Data:")
 print(head(researcher_data))
@@ -442,7 +442,7 @@ for (i in seq_along(stations)) {
     station = st,
     mean_temp = mean(st_data$temp_c, na.rm = TRUE),
     mean_do = mean(st_data$do_mg_l, na.rm = TRUE),
-    count = n()
+    count = nrow(st_data)
   )
 
   station_summaries[[i]] <- df
