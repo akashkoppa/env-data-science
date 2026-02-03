@@ -119,49 +119,45 @@ jul_diff <- monthly_temps["Jul"] - mean(monthly_temps)
 #solution-header("Exercise 2: Importing Data")
 
 #section-title("(a) Algorithm in Plain English")
-1. Load the `readr` package (part of tidyverse).
-2. Define a list of strings that represent missing values (e.g., "NA", "-999", "-9999").
-3. Read the CSV file, explicitly passing the missing value list and defining column types (Station as factor, Date as date, others as double).
-4. Inspect the resulting dataframe for parsing errors.
+1. Define a list of strings that represent missing values (e.g., "NA", "-999", "-9999").
+2. Read the CSV file using base R's `read.csv()`, passing the missing value list via `na.strings`.
+3. Convert column types manually: Station to factor, Date to Date object.
+4. Inspect the resulting data frame for structure and any issues.
 5. Count the number of missing values (NA) in the dissolved oxygen and temperature columns.
 
 #section-title("(b) Algorithm in Pseudocode")
 #code-box(```text
-IMPORT library(tidyverse)
 DEFINE na_codes = ["", "NA", "N/A", "-999", "-9999"]
 
-data = READ_CSV("water_quality.csv",
-    na = na_codes,
-    col_types = {station: FACTOR, date: DATE, others: DOUBLE}
-)
+data = READ.CSV("water_quality.csv", na.strings = na_codes)
 
-IF problems(data) EXIST:
-    PRINT problems
+# Convert types manually
+data$station = AS_FACTOR(data$station)
+data$date = AS_DATE(data$date, format = "%Y-%m-%d")
 
-COUNT NA in data.do_mg_l
-COUNT NA in data.temp_c
+DISPLAY structure(data)
+DISPLAY summary(data)
+
+COUNT NA in data$do_mg_l
+COUNT NA in data$temp_c
 ```)
 
 #section-title("(c) R Code Solution")
 #code-box(```r
-library(tidyverse)
-
-# Import with explicit handling of NAs and types
-water_data <- read_csv(
+# Import with explicit handling of NAs
+water_data <- read.csv(
   "water_quality.csv",
-  na = c("", "NA", "N/A", "-999", "-9999"),
-  col_types = cols(
-    station = col_factor(),
-    date = col_date(),
-    temp_c = col_double(),
-    do_mg_l = col_double(),
-    ph = col_double(),
-    turbidity_ntu = col_double()
-  )
+  na.strings = c("", "NA", "N/A", "-999", "-9999"),
+  stringsAsFactors = FALSE
 )
 
-# Check for parsing problems
-problems(water_data)
+# Convert column types manually
+water_data$station <- as.factor(water_data$station)
+water_data$date <- as.Date(water_data$date, format = "%Y-%m-%d")
+
+# Inspect structure
+str(water_data)
+summary(water_data)
 
 # Count NAs
 sum(is.na(water_data$do_mg_l))
@@ -177,46 +173,51 @@ sum(is.na(water_data$temp_c))
 #solution-header("Exercise 3: Data Inspection and Validation")
 
 #section-title("(a) Algorithm in Plain English")
-1. Inspect the dataframe structure (dimensions, column names, types) using summary functions.
-2. Calculate the count and percentage of missing values for every column.
+1. Inspect the data frame structure (dimensions, column names, types) using summary functions.
+2. Calculate the count and percentage of missing values for every column using `sapply()`.
 3. Define logical conditions for physically impossible values (e.g., Temp < 0 or > 35).
-4. Filter the dataframe to extract only rows that satisfy these "impossible" conditions.
+4. Use logical indexing to extract only rows that satisfy these "impossible" conditions.
 5. Print the invalid rows for inspection.
 
 #section-title("(b) Algorithm in Pseudocode")
 #code-box(```text
-DISPLAY structure(data)
+DISPLAY str(data)
+DISPLAY summary(data)
 
 FOR each column in data:
-    CALCULATE count of NAs
+    CALCULATE count of NAs using sapply
     CALCULATE percent of NAs
 
-DEFINE invalid_rows = FILTER data WHERE:
-    (temp < 0 OR temp > 35) OR
-    (do < 0 OR do > 15) OR
-    (ph < 6 OR ph > 9)
+DEFINE condition = (temp < 0 OR temp > 35) OR
+                   (do < 0 OR do > 15) OR
+                   (ph < 6 OR ph > 9)
 
+invalid_rows = data[condition, ]
 DISPLAY invalid_rows
 ```)
 
 #section-title("(c) R Code Solution")
 #code-box(```r
 # Structure
-glimpse(water_data)
+str(water_data)
+summary(water_data)
 
-# Missing data summary
-water_data |>
-  summarize(across(everything(), ~sum(is.na(.)))) |>
-  pivot_longer(everything(), names_to = "variable", values_to = "na_count")
+# Missing data summary using sapply
+na_counts <- sapply(water_data, function(x) sum(is.na(x)))
+na_percent <- sapply(water_data, function(x) mean(is.na(x)) * 100)
+data.frame(variable = names(na_counts),
+           na_count = na_counts,
+           na_percent = round(na_percent, 2))
 
-# Validation check
-invalid_data <- water_data |>
-  filter(
-    (temp_c < 0 | temp_c > 35) |
-    (do_mg_l < 0 | do_mg_l > 15) |
-    (ph < 6 | ph > 9)
-  )
+# Validation check using logical indexing
+invalid_condition <- (water_data$temp_c < 0 | water_data$temp_c > 35) |
+                     (water_data$do_mg_l < 0 | water_data$do_mg_l > 15) |
+                     (water_data$ph < 6 | water_data$ph > 9)
 
+# Handle NAs in conditions (replace NA with FALSE)
+invalid_condition[is.na(invalid_condition)] <- FALSE
+
+invalid_data <- water_data[invalid_condition, ]
 print(invalid_data)
 ```)
 
@@ -230,52 +231,62 @@ print(invalid_data)
 
 #section-title("(a) Algorithm in Plain English")
 1. *Fisheries Request:*
-   - Filter rows where Date is "2025-07-23".
+   - Filter rows where Date is "2025-07-23" using logical indexing.
    - Keep rows where DO < 6.0 OR Turbidity > 15.
-   - Select only station, date, DO, and turbidity columns.
-   - Sort rows by DO in ascending order.
+   - Select only station, date, DO, and turbidity columns by name.
+   - Sort rows by DO in ascending order using `order()`.
 2. *Researcher Request:*
-   - Filter rows where Station is "CB-5.1" OR "CB-5.2".
+   - Filter rows where Station is "CB-5.1" OR "CB-5.2" using `%in%`.
    - Keep rows where Temp is between 24 and 26 (inclusive).
    - Keep rows where DO is NOT missing.
-   - Rename `do_mg_l` to `dissolved_oxygen` during selection.
+   - Rename `do_mg_l` to `dissolved_oxygen` using `names()`.
 
 #section-title("(b) Algorithm in Pseudocode")
 #code-box(```text
 // Fisheries
-fisheries = data
-  FILTER date == "2025-07-23"
-  FILTER (do < 6.0) OR (turbidity > 15)
-  SELECT station, date, do, turbidity
-  SORT by do (ascending)
+fisheries = data[date == "2025-07-23", ]
+fisheries = fisheries[(do < 6.0) OR (turbidity > 15), ]
+fisheries = fisheries[, c("station", "date", "do", "turbidity")]
+fisheries = fisheries[order(fisheries$do), ]
 
 // Researcher
-researcher = data
-  FILTER station IN ["CB-5.1", "CB-5.2"]
-  FILTER temp >= 24 AND temp <= 26
-  FILTER do IS NOT NA
-  RENAME do_mg_l -> dissolved_oxygen
+researcher = data[station %in% c("CB-5.1", "CB-5.2"), ]
+researcher = researcher[temp >= 24 AND temp <= 26, ]
+researcher = researcher[NOT is.na(do), ]
+RENAME do_mg_l -> dissolved_oxygen
 ```)
 
 #section-title("(c) R Code Solution")
 #code-box(```r
 # Fisheries Biologist
-fisheries_req <- water_data |>
-  filter(
-    date == as.Date("2025-07-23"),
-    (do_mg_l < 6.0 | turbidity_ntu > 15)
-  ) |>
-  select(station, date, do_mg_l, turbidity_ntu) |>
-  arrange(do_mg_l)
+# Step 1: Filter by date
+fisheries_req <- water_data[water_data$date == as.Date("2025-07-23"), ]
+
+# Step 2: Filter by DO or turbidity condition
+condition <- (fisheries_req$do_mg_l < 6.0 | fisheries_req$turbidity_ntu > 15)
+condition[is.na(condition)] <- FALSE
+fisheries_req <- fisheries_req[condition, ]
+
+# Step 3: Select columns
+fisheries_req <- fisheries_req[, c("station", "date", "do_mg_l", "turbidity_ntu")]
+
+# Step 4: Sort by DO ascending
+fisheries_req <- fisheries_req[order(fisheries_req$do_mg_l), ]
 
 # Researcher
-researcher_req <- water_data |>
-  filter(
-    station %in% c("CB-5.1", "CB-5.2"),
-    between(temp_c, 24, 26),
-    !is.na(do_mg_l)
-  ) |>
-  select(station, date, temp_c, dissolved_oxygen = do_mg_l)
+# Step 1: Filter by station
+researcher_req <- water_data[water_data$station %in% c("CB-5.1", "CB-5.2"), ]
+
+# Step 2: Filter by temperature range
+researcher_req <- researcher_req[researcher_req$temp_c >= 24 &
+                                  researcher_req$temp_c <= 26, ]
+
+# Step 3: Remove rows with missing DO
+researcher_req <- researcher_req[!is.na(researcher_req$do_mg_l), ]
+
+# Step 4: Select and rename columns
+researcher_req <- researcher_req[, c("station", "date", "temp_c", "do_mg_l")]
+names(researcher_req)[names(researcher_req) == "do_mg_l"] <- "dissolved_oxygen"
 ```)
 
 #pagebreak()
@@ -287,50 +298,63 @@ researcher_req <- water_data |>
 #solution-header("Exercise 5: Transforming Data")
 
 #section-title("(a) Algorithm in Plain English")
-1. Use a mutation function to create new columns.
+1. Add new columns using direct assignment (`data$new_col <- ...`).
 2. Calculate Fahrenheit from Celsius using standard formula.
 3. Calculate Percent Saturation using the given simplified formula.
 4. Calculate Log Turbidity using natural log.
-5. Create a categorical status column: if DO is missing return "Unknown", else if < 2 "Hypoxic", else if < 5 "Stressed", etc. (Order matters).
-6. Extract Month and Day of Year from the Date object.
+5. Create a categorical status column using nested `ifelse()`: if DO is missing return "Unknown", else if < 2 "Hypoxic", else if < 5 "Stressed", etc. (Order matters).
+6. Extract Month and Day of Year from the Date object using `format()`.
 7. Calculate "Days Since Start" by subtracting the minimum date from the current row's date.
 8. Calculate Temperature Z-score: $("Value" - "Mean") / "SD"$.
 
 #section-title("(b) Algorithm in Pseudocode")
 #code-box(```text
-data_new = data WITH NEW COLUMNS:
-  temp_f = temp_c * 1.8 + 32
-  do_sat = (do / 8.0) * 100
-  log_turb = LOG(turbidity)
-  status = CASE_WHEN(
-     is_na(do) -> "Unknown",
-     do < 2 -> "Hypoxic",
-     do < 5 -> "Stressed",
-     TRUE -> "Healthy"
-  )
-  days_elapsed = date - MIN(date)
-  temp_z = (temp - MEAN(temp)) / SD(temp)
+data$temp_f = temp_c * 1.8 + 32
+data$do_sat = (do / 8.0) * 100
+data$log_turb = LOG(turbidity)
+data$status = IFELSE(is_na(do), "Unknown",
+               IFELSE(do < 2, "Hypoxic",
+                IFELSE(do < 5, "Stressed",
+                 IFELSE(do < 8, "Adequate", "Healthy"))))
+data$month = FORMAT(date, "%m")
+data$day_of_year = FORMAT(date, "%j")
+data$days_elapsed = date - MIN(date)
+data$temp_z = (temp - MEAN(temp)) / SD(temp)
 ```)
 
 #section-title("(c) R Code Solution")
 #code-box(```r
-water_enhanced <- water_data |>
-  mutate(
-    temp_f = temp_c * 9/5 + 32,
-    do_percent_sat = (do_mg_l / 8.0) * 100,
-    log_turbidity = log(turbidity_ntu),
-    do_status = case_when(
-      is.na(do_mg_l) ~ "Unknown",
-      do_mg_l < 2.0 ~ "Hypoxic",
-      do_mg_l < 5.0 ~ "Stressed",
-      do_mg_l < 8.0 ~ "Adequate",
-      TRUE ~ "Healthy"
-    ),
-    month = month(date, label = TRUE),
-    day_of_year = yday(date),
-    days_since_start = as.numeric(date - min(date, na.rm = TRUE)),
-    temp_zscore = (temp_c - mean(temp_c, na.rm = TRUE)) / sd(temp_c, na.rm = TRUE)
-  )
+# Make a copy to avoid modifying original
+water_enhanced <- water_data
+
+# Temperature conversion
+water_enhanced$temp_f <- water_enhanced$temp_c * 9/5 + 32
+
+# DO percent saturation
+water_enhanced$do_percent_sat <- (water_enhanced$do_mg_l / 8.0) * 100
+
+# Log turbidity
+water_enhanced$log_turbidity <- log(water_enhanced$turbidity_ntu)
+
+# DO status classification using nested ifelse
+water_enhanced$do_status <- ifelse(is.na(water_enhanced$do_mg_l), "Unknown",
+  ifelse(water_enhanced$do_mg_l < 2.0, "Hypoxic",
+    ifelse(water_enhanced$do_mg_l < 5.0, "Stressed",
+      ifelse(water_enhanced$do_mg_l < 8.0, "Adequate", "Healthy"))))
+
+# Extract month and day of year using format()
+water_enhanced$month <- format(water_enhanced$date, "%B")  # Full month name
+water_enhanced$day_of_year <- as.integer(format(water_enhanced$date, "%j"))
+
+# Days since start of monitoring
+water_enhanced$days_since_start <- as.numeric(
+  difftime(water_enhanced$date, min(water_enhanced$date, na.rm = TRUE),
+           units = "days"))
+
+# Temperature z-score
+temp_mean <- mean(water_enhanced$temp_c, na.rm = TRUE)
+temp_sd <- sd(water_enhanced$temp_c, na.rm = TRUE)
+water_enhanced$temp_zscore <- (water_enhanced$temp_c - temp_mean) / temp_sd
 ```)
 
 #pagebreak()
@@ -343,57 +367,66 @@ water_enhanced <- water_data |>
 
 #section-title("(a) Algorithm in Plain English")
 1. *Station Summary:*
-   - Group the dataset by Station.
+   - Split the dataset by Station using `split()` or use `aggregate()`.
    - Calculate summary statistics for each group: mean temp, mean DO (ignoring NAs), max turbidity, and count of observations.
    - Calculate proportion of stressed readings by taking the mean of the logical condition (DO < 6).
 2. *Relative Analysis:*
-   - Group by Station.
-   - Instead of collapsing rows, add new columns to existing rows:
+   - Use `ave()` to calculate group-level statistics without collapsing rows:
      - Station Mean Temp (mean of temp for that group).
      - Deviation (current temp - station mean).
      - Rank (rank of DO within that station, descending).
-   - Ungroup the data to prevent issues with future operations.
 
 #section-title("(b) Algorithm in Pseudocode")
 #code-box(```text
-// Summary
-GROUP data BY station
-SUMMARIZE:
-  mean_temp = MEAN(temp)
-  mean_do = MEAN(do, remove_na=TRUE)
-  prop_stressed = MEAN(do < 6)
+// Summary using aggregate
+station_summary = AGGREGATE(
+  cbind(temp, do, turbidity) BY station,
+  FUN = function to calculate mean/max/count
+)
 
-// Relative Analysis
-GROUP data BY station
-MUTATE:
-  station_mean = MEAN(temp)
-  anomaly = temp - station_mean
-  rank = RANK(DESC(do))
-UNGROUP
+// Relative Analysis using ave
+data$station_mean = AVE(temp, station, FUN = MEAN)
+data$anomaly = temp - station_mean
+data$rank = AVE(do, station, FUN = function(x) RANK(-x))
 ```)
 
 #section-title("(c) R Code Solution")
 #code-box(```r
-# Part 1: Summary Report
-station_summary <- water_enhanced |>
-  group_by(station) |>
-  summarize(
-    mean_temp = mean(temp_c, na.rm = TRUE),
-    mean_do = mean(do_mg_l, na.rm = TRUE),
-    max_turb = max(turbidity_ntu, na.rm = TRUE),
-    n = n(),
-    prop_stressed = mean(do_mg_l < 6.0, na.rm = TRUE)
-  )
+# Part 1: Summary Report using aggregate
+# Note: aggregate can only apply one function at a time, so we do multiple calls
 
-# Part 2: Relative Analysis
-station_relative <- water_enhanced |>
-  group_by(station) |>
-  mutate(
-    station_mean_temp = mean(temp_c, na.rm = TRUE),
-    temp_vs_station = temp_c - station_mean_temp,
-    station_do_rank = min_rank(desc(do_mg_l))
-  ) |>
-  ungroup()
+mean_temp <- aggregate(temp_c ~ station, data = water_enhanced,
+                       FUN = function(x) mean(x, na.rm = TRUE))
+mean_do <- aggregate(do_mg_l ~ station, data = water_enhanced,
+                     FUN = function(x) mean(x, na.rm = TRUE))
+max_turb <- aggregate(turbidity_ntu ~ station, data = water_enhanced,
+                      FUN = function(x) max(x, na.rm = TRUE))
+n_obs <- aggregate(temp_c ~ station, data = water_enhanced,
+                   FUN = length)
+prop_stressed <- aggregate(do_mg_l ~ station, data = water_enhanced,
+                           FUN = function(x) mean(x < 6.0, na.rm = TRUE))
+
+# Combine into one data frame
+station_summary <- data.frame(
+  station = mean_temp$station,
+  mean_temp = mean_temp$temp_c,
+  mean_do = mean_do$do_mg_l,
+  max_turb = max_turb$turbidity_ntu,
+  n = n_obs$temp_c,
+  prop_stressed = prop_stressed$do_mg_l
+)
+
+# Part 2: Relative Analysis using ave()
+water_enhanced$station_mean_temp <- ave(water_enhanced$temp_c,
+                                         water_enhanced$station,
+                                         FUN = function(x) mean(x, na.rm = TRUE))
+
+water_enhanced$temp_vs_station <- water_enhanced$temp_c -
+                                   water_enhanced$station_mean_temp
+
+water_enhanced$station_do_rank <- ave(water_enhanced$do_mg_l,
+                                       water_enhanced$station,
+                                       FUN = function(x) rank(-x, na.last = "keep"))
 ```)
 
 #pagebreak()
@@ -405,41 +438,86 @@ station_relative <- water_enhanced |>
 #solution-header("Exercise 7: Tidying Data")
 
 #section-title("(a) Algorithm in Plain English")
-1. *Wide to Long:* Take columns 'jan' through 'oct', move their names to a "month" column and their values to a "temperature" column.
-2. *Long to Wide:* Take the "month" column for names and "temperature" column for values, and spread them back out.
+1. *Wide to Long:* Use `reshape()` or `stack()` to take columns 'jan' through 'oct', move their names to a "month" column and their values to a "temperature" column.
+2. *Long to Wide:* Use `reshape()` with direction="wide" to spread values back into columns.
 3. *Complex Tidy:*
-   - Convert all columns except 'station' to long format (name, value).
-   - Split the 'name' column (e.g., "do_jun") into two columns ("variable", "month") using the underscore separator.
-   - Pivot wider, using the "variable" column for new column names and "value" for values, resulting in columns for 'do' and 'temp'.
+   - Convert all columns except 'station' to long format using `stack()`.
+   - Split the column names (e.g., "do_jun") into two parts ("variable", "month") using `strsplit()`.
+   - Reshape wider using `reshape()` so 'do' and 'temp' become separate columns.
 
 #section-title("(b) Algorithm in Pseudocode")
 #code-box(```text
-// Part 1
-long_data = PIVOT_LONGER(wide_data, cols=[jan:oct],
-    names="month", values="temperature")
+// Part 1: Using stack()
+stacked = STACK(wide_data[, c("jan", "apr", "jul", "oct")])
+long_data = DATA.FRAME(
+  station = REPEAT(wide_data$station, 4),
+  month = stacked$ind,
+  temperature = stacked$values
+)
 
 // Part 3
-tidy_data = dirty_data
-  PIVOT_LONGER(cols=-station, names="key", values="val")
-  SEPARATE(key, into=["var", "month"], sep="_")
-  PIVOT_WIDER(names_from="var", values_from="val")
+stacked = STACK(dirty_data[, columns != "station"])
+parts = STRSPLIT(stacked$ind, "_")
+variable = EXTRACT first element of each split
+month = EXTRACT second element of each split
+RESHAPE to wide format
 ```)
 
 #section-title("(c) R Code Solution")
 #code-box(```r
-# Part 1: Wide to Long
-temps_long <- temps_wide |>
-  pivot_longer(
-    cols = c(jan, apr, jul, oct),
-    names_to = "month",
-    values_to = "temperature"
-  )
+# Part 1: Wide to Long using stack()
+temps_wide <- data.frame(
+  station = c("CB-5.1", "CB-5.2"),
+  jan = c(4.2, 3.8), apr = c(12.5, 11.9),
+  jul = c(26.8, 27.1), oct = c(16.3, 15.8)
+)
+
+# Stack the month columns
+stacked <- stack(temps_wide[, c("jan", "apr", "jul", "oct")])
+temps_long <- data.frame(
+  station = rep(temps_wide$station, 4),
+  month = stacked$ind,
+  temperature = stacked$values
+)
+
+# Alternative using reshape()
+temps_long_v2 <- reshape(temps_wide,
+  direction = "long",
+  varying = list(c("jan", "apr", "jul", "oct")),
+  v.names = "temperature",
+  timevar = "month",
+  times = c("jan", "apr", "jul", "oct"),
+  idvar = "station"
+)
 
 # Part 3: Complex Tidy
-water_tidy <- water_wide |>
-  pivot_longer(cols = -station, names_to = "name", values_to = "value") |>
-  separate(name, into = c("variable", "month"), sep = "_") |>
-  pivot_wider(names_from = variable, values_from = value)
+water_wide <- data.frame(
+  station = "CB-5.1",
+  do_jun = 6.8, do_jul = 5.2,
+  temp_jun = 24.5, temp_jul = 26.8
+)
+
+# Step 1: Stack to long format
+stacked <- stack(water_wide[, -1])  # Exclude station column
+long_df <- data.frame(
+  station = rep(water_wide$station, ncol(water_wide) - 1),
+  name = as.character(stacked$ind),
+  value = stacked$values
+)
+
+# Step 2: Split the name column
+parts <- strsplit(long_df$name, "_")
+long_df$variable <- sapply(parts, "[", 1)  # First part (do, temp)
+long_df$month <- sapply(parts, "[", 2)     # Second part (jun, jul)
+
+# Step 3: Reshape to wide format
+water_tidy <- reshape(long_df[, c("station", "month", "variable", "value")],
+  direction = "wide",
+  idvar = c("station", "month"),
+  timevar = "variable",
+  v.names = "value"
+)
+names(water_tidy) <- gsub("value\\.", "", names(water_tidy))
 ```)
 
 #pagebreak()
@@ -451,45 +529,90 @@ water_tidy <- water_wide |>
 #solution-header("Exercise 8: Data Visualization")
 
 #section-title("(a) Algorithm in Plain English")
-1. *Scatter:* Map Temp (x) and DO (y). Color points by Station. Add a smoothed trend line.
-2. *Boxplot:* Map Station (x) and Turbidity (y). Use `geom_boxplot` to show distribution.
-3. *Time Series:* Map Date (x) and DO (y). Group/Color by Station. Add line and point geometries. Add horizontal reference line at y=5.
-4. *Facets:* Create scatter plot of Temp vs DO. Use `facet_wrap` to create a separate panel for each Station.
+1. *Scatter:* Use base `plot()` with Temp (x) and DO (y). Color points by Station. Add a linear trend line using `abline()` with `lm()`.
+2. *Boxplot:* Use `boxplot()` with formula notation (Turbidity ~ Station).
+3. *Time Series:* Use `plot()` with Date (x) and DO (y). Add lines for each station using `lines()`. Add horizontal reference line at y=5 using `abline(h=5)`.
+4. *Multi-panel:* Use `par(mfrow = c(2, 2))` to set up panels, then create separate plots for each station.
 
 #section-title("(b) Algorithm in Pseudocode")
 #code-box(```text
-PLOT(data, x=temp, y=do) +
-  POINTS(color=station) +
-  SMOOTH_LINE()
+// Scatter plot with trend line
+PLOT(temp, do)
+POINTS colored by station
+fit = LM(do ~ temp)
+ABLINE(fit)
 
-PLOT(data, x=date, y=do, color=station) +
-  LINE() +
-  HLINE(y=5)
+// Boxplot
+BOXPLOT(turbidity ~ station)
 
-PLOT(data, x=temp, y=do) +
-  POINTS() +
-  FACET(by=station)
+// Time series
+PLOT(date, do, type="n")  // empty plot
+FOR each station:
+  LINES(subset data)
+ABLINE(h=5)
+
+// Multi-panel
+PAR(mfrow = c(2, 2))
+FOR each station:
+  PLOT subset data
 ```)
 
 #section-title("(c) R Code Solution")
 #code-box(```r
-# Plot 1: Scatter
-ggplot(water_enhanced, aes(x = temp_c, y = do_mg_l)) +
-  geom_point(aes(color = station)) +
-  geom_smooth(method = "loess") +
-  labs(title = "DO vs Temp")
+# Plot 1: Scatter with trend line
+# Assign colors based on station
+station_colors <- as.numeric(factor(water_enhanced$station))
+plot(water_enhanced$temp_c, water_enhanced$do_mg_l,
+     xlab = "Temperature (C)", ylab = "DO (mg/L)",
+     main = "DO vs Temperature",
+     col = station_colors, pch = 16)
+
+# Add trend line
+fit <- lm(do_mg_l ~ temp_c, data = water_enhanced)
+abline(fit, col = "blue", lwd = 2)
+
+# Add legend
+legend("topright", legend = levels(factor(water_enhanced$station)),
+       col = 1:length(unique(water_enhanced$station)), pch = 16)
+
+# Plot 2: Boxplot
+boxplot(turbidity_ntu ~ station, data = water_enhanced,
+        xlab = "Station", ylab = "Turbidity (NTU)",
+        main = "Turbidity by Station",
+        col = "lightblue")
 
 # Plot 3: Time Series
-ggplot(water_enhanced, aes(x = date, y = do_mg_l, color = station)) +
-  geom_line() +
-  geom_point() +
-  geom_hline(yintercept = 5.0, linetype = "dashed")
+stations <- unique(water_enhanced$station)
+colors <- 1:length(stations)
 
-# Plot 4: Facets
-ggplot(water_enhanced, aes(x = temp_c, y = do_mg_l)) +
-  geom_point(alpha = 0.6) +
-  facet_wrap(~station) +
-  theme_minimal()
+# Create empty plot with correct range
+plot(water_enhanced$date, water_enhanced$do_mg_l,
+     type = "n",
+     xlab = "Date", ylab = "DO (mg/L)",
+     main = "DO Time Series by Station")
+
+# Add lines for each station
+for (i in seq_along(stations)) {
+  subset_data <- water_enhanced[water_enhanced$station == stations[i], ]
+  subset_data <- subset_data[order(subset_data$date), ]
+  lines(subset_data$date, subset_data$do_mg_l, col = colors[i])
+  points(subset_data$date, subset_data$do_mg_l, col = colors[i], pch = 16, cex = 0.5)
+}
+
+# Add threshold line and legend
+abline(h = 5.0, lty = 2, col = "red")
+legend("topright", legend = stations, col = colors, lty = 1, pch = 16)
+
+# Plot 4: Multi-panel plots
+par(mfrow = c(2, 2))
+for (st in stations[1:4]) {  # First 4 stations
+  subset_data <- water_enhanced[water_enhanced$station == st, ]
+  plot(subset_data$temp_c, subset_data$do_mg_l,
+       xlab = "Temperature (C)", ylab = "DO (mg/L)",
+       main = paste("Station:", st),
+       pch = 16, col = "darkgreen")
+}
+par(mfrow = c(1, 1))  # Reset to single panel
 ```)
 
 #pagebreak()
@@ -509,35 +632,61 @@ ggplot(water_enhanced, aes(x = temp_c, y = do_mg_l)) +
    - Else if Temp > 28, return "Heat Stress".
    - Else return "Good".
 3. *Summarizer:* Function takes `data` and `station_id`.
-   - Filter data for that station.
+   - Filter data for that station using logical indexing.
    - If rows == 0, return warning.
    - Return list containing calculated mean temp, mean DO, count, etc.
 
 #section-title("(b) Algorithm in Pseudocode")
 #code-box(```text
 FUNCTION classify(do, temp, limits):
-  IF is_na(do) RETURN "Unknown"
+  IF is_na(do) OR is_na(temp) RETURN "Unknown"
   IF do < limits.hypoxic RETURN "Critical"
   IF do < limits.stress RETURN "Stressed"
   IF temp > 28 RETURN "Heat Stress"
   RETURN "Good"
 
 FUNCTION summarize_station(data, id):
-  subset = FILTER data WHERE station == id
+  subset = data[data$station == id, ]
+  IF nrow(subset) == 0 RETURN NULL
   RETURN LIST(
-    mean_t = MEAN(subset.temp),
-    mean_do = MEAN(subset.do)
+    mean_t = MEAN(subset$temp),
+    mean_do = MEAN(subset$do)
   )
 ```)
 
 #section-title("(c) R Code Solution")
 #code-box(```r
-# Classifier
+# Temperature conversion functions
+celsius_to_fahrenheit <- function(temp_c) {
+  temp_f <- temp_c * 9/5 + 32
+  return(temp_f)
+}
+
+fahrenheit_to_celsius <- function(temp_f) {
+  temp_c <- (temp_f - 32) * 5/9
+  return(temp_c)
+}
+
+# Test: round-trip conversion
+fahrenheit_to_celsius(celsius_to_fahrenheit(25))  # Should return 25
+
+# Saturation deficit calculator
+calc_saturation_deficit <- function(do_measured, temperature) {
+  do_saturated <- 14.62 - (0.3898 * temperature)
+  deficit <- do_saturated - do_measured
+  return(deficit)
+}
+
+# Test with DO = 6.5, temp = 25
+calc_saturation_deficit(6.5, 25)
+
+# Water quality classifier
 classify_water_quality <- function(do, temp,
                                    hypoxic_threshold = 2.0,
                                    stress_threshold = 5.0) {
-  if (is.na(do) || is.na(temp)) return("Unknown")
-
+  if (is.na(do) || is.na(temp)) {
+    return("Unknown")
+  }
   if (do < hypoxic_threshold) {
     return("Critical")
   } else if (do < stress_threshold) {
@@ -549,17 +698,23 @@ classify_water_quality <- function(do, temp,
   }
 }
 
-# Station Summarizer
+# Station Summarizer using base R
 summarize_station <- function(data, station_id) {
-  st_data <- data |> filter(station == station_id)
+  # Filter using logical indexing
+  st_data <- data[data$station == station_id, ]
 
-  if (nrow(st_data) == 0) return(NULL)
+  if (nrow(st_data) == 0) {
+    warning(paste("Station", station_id, "not found in data"))
+    return(NULL)
+  }
 
+  # Return named list with statistics
   list(
     station = station_id,
     mean_temp = mean(st_data$temp_c, na.rm = TRUE),
     mean_do = mean(st_data$do_mg_l, na.rm = TRUE),
-    n = nrow(st_data)
+    n_observations = nrow(st_data),
+    hypoxic_count = sum(st_data$do_mg_l < 2.0, na.rm = TRUE)
   )
 }
 ```)
@@ -573,55 +728,97 @@ summarize_station <- function(data, station_id) {
 #solution-header("Exercise 10: Loops and Iteration")
 
 #section-title("(a) Algorithm in Plain English")
-1. *For Loop:* Iterate through each unique station name. Inside loop, filter data for that station and print its mean temperature.
-2. *Accumulation:* Create empty list. Loop through stations. In each iteration, create a 1-row dataframe of stats. Store in list. After loop, bind all list elements into one dataframe.
+1. *For Loop:* Iterate through each unique station name. Inside loop, filter data for that station using logical indexing and print its mean temperature.
+2. *Accumulation:* Create empty list. Loop through stations. In each iteration, create a 1-row data frame of stats. Store in list. After loop, combine all list elements into one data frame using `do.call(rbind, ...)`.
 3. *While Loop:* Set DO = 8.0. While DO >= 2.0, subtract random number (0.1-0.5) from DO and increment day counter.
-4. *Purrr:* Use `map_dfr` to iterate over stations. Pass a function that filters and summarizes. It automatically binds results.
+4. *Apply Family:* Use `lapply()` to iterate over stations. Pass a function that filters and summarizes. Combine results with `do.call(rbind, ...)`.
 
 #section-title("(b) Algorithm in Pseudocode")
 #code-box(```text
+// For Loop with printing
+FOR st IN unique(data$station):
+   subset = data[data$station == st, ]
+   PRINT("Station", st, ": Mean temp =", MEAN(subset$temp))
+
 // Accumulation
 results = LIST()
-FOR st IN stations:
-   df = CALCULATE stats for st
-   results.APPEND(df)
-final_table = BIND_ROWS(results)
+FOR i IN 1:length(stations):
+   subset = data[data$station == stations[i], ]
+   results[[i]] = DATA.FRAME(station, mean_temp, count)
+final_table = DO.CALL(rbind, results)
 
 // While Loop
 do_level = 8.0
 days = 0
 WHILE do_level >= 2.0:
-   do_level = do_level - RANDOM(0.1, 0.5)
+   do_level = do_level - RUNIF(1, 0.1, 0.5)
    days = days + 1
 ```)
 
 #section-title("(c) R Code Solution")
 #code-box(```r
-# Accumulating Results
-station_summaries <- list()
-for (i in seq_along(stations)) {
-  st_data <- filter(water_enhanced, station == stations[i])
+# Part 1: For loop with printing
+stations <- unique(water_enhanced$station)
 
-  station_summaries[[i]] <- tibble(
+for (st in stations) {
+  st_data <- water_enhanced[water_enhanced$station == st, ]
+  mean_temp <- mean(st_data$temp_c, na.rm = TRUE)
+  print(paste("Station", st, ": Mean temperature =",
+              round(mean_temp, 2), "C"))
+}
+
+# Part 2: Accumulating results in a list
+station_summaries <- list()
+
+for (i in seq_along(stations)) {
+  st_data <- water_enhanced[water_enhanced$station == stations[i], ]
+
+  station_summaries[[i]] <- data.frame(
     station = stations[i],
     mean_temp = mean(st_data$temp_c, na.rm = TRUE),
+    mean_do = mean(st_data$do_mg_l, na.rm = TRUE),
     count = nrow(st_data)
   )
 }
-final_results <- bind_rows(station_summaries)
 
-# While Loop
+# Combine list into single data frame
+final_results <- do.call(rbind, station_summaries)
+print(final_results)
+
+# Part 3: While loop simulation
 do_level <- 8.0
 days <- 0
+
 while (do_level >= 2.0) {
   do_level <- do_level - runif(1, 0.1, 0.5)
   days <- days + 1
 }
 
-# Purrr
-map_dfr(unique(water_enhanced$station), function(st) {
-  water_enhanced |>
-    filter(station == st) |>
-    summarize(station = st, mean_do = mean(do_mg_l, na.rm = TRUE))
+print(paste("Days to critical hypoxia:", days))
+
+# Run simulation 5 times to see variability
+set.seed(NULL)  # Reset random seed
+for (run in 1:5) {
+  do_level <- 8.0
+  days <- 0
+  while (do_level >= 2.0) {
+    do_level <- do_level - runif(1, 0.1, 0.5)
+    days <- days + 1
+  }
+  print(paste("Run", run, ":", days, "days"))
+}
+
+# Part 4: Using lapply() instead of for loop
+results_list <- lapply(stations, function(st) {
+  st_data <- water_enhanced[water_enhanced$station == st, ]
+  data.frame(
+    station = st,
+    mean_do = mean(st_data$do_mg_l, na.rm = TRUE),
+    n = nrow(st_data)
+  )
 })
+
+# Combine into single data frame
+final_results_lapply <- do.call(rbind, results_list)
+print(final_results_lapply)
 ```)

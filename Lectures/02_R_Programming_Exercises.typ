@@ -134,7 +134,7 @@ The exercises are structured around realistic environmental data science problem
 #v(0.5em)
 
 #focus-box(title: "Setup Required", color: warning-color)[
-  Before starting, install the tidyverse: `install.packages("tidyverse")` (run once). Then load it each session with `library(tidyverse)`. The tidyverse includes `ggplot2`, `dplyr`, `tidyr`, `readr`, and other essential packages for data science.
+  Before starting, ensure you have R and RStudio installed. These exercises intentionally use *base R* to help you understand fundamental programming concepts. Later lectures will introduce the tidyverse for more concise data manipulation, but first you must understand what happens "under the hood."
 ]
 
 #pagebreak()
@@ -215,12 +215,12 @@ Create variables for each piece of station metadata with appropriate names. Crea
 *Your Primary Tasks:*
 
 Import the data from `water_quality.csv` and:
-- Read the CSV using `read_csv()` and examine the automatic type detection messages
-- Re-import the data, explicitly handling the missing value codes (`-999`, `-9999`)
-- Re-import with explicit column types: station as factor, date as date, numerics as doubles
-- Check for any parsing problems
+- Read the CSV using `read.csv()` and examine the resulting data frame structure
+- Re-import the data, explicitly handling the missing value codes (`-999`, `-9999`) using the `na.strings` argument
+- Convert column types manually: station as factor, date as Date object, numerics as doubles
+- Check for any rows with missing or problematic values
 - Count how many missing values exist in the dissolved oxygen and temperature columns
-- Verify the data looks correct using inspection functions
+- Verify the data looks correct using inspection functions like `str()`, `head()`, and `summary()`
 
 #algorithm-box[
   Think through the import process:
@@ -233,17 +233,19 @@ Import the data from `water_quality.csv` and:
 ]
 
 #hint-box[
-  *Import:* `read_csv("filename.csv")` — note the underscore! Base R's `read.csv()` behaves differently
+  *Import:* `read.csv("filename.csv")` — base R function for reading CSV files
 
-  *Column types:* `col_types = cols(station = col_factor(), date = col_date(), temp_c = col_double())`
+  *Check structure:* `str(data)` shows column types and first few values
 
-  *Check problems:* `problems(data)` shows any parsing issues
+  *Column type conversion:* `as.factor()`, `as.Date()`, `as.numeric()`, `as.integer()`, `as.character()`
 
-  *Available types:* `col_double()`, `col_integer()`, `col_character()`, `col_factor()`, `col_date()`, `col_logical()`, `col_skip()`
+  *Date conversion:* `as.Date(column, format = "%Y-%m-%d")` — specify the format string
 
-  *Missing value handling:* `na = c("", "NA", "N/A", "-999", "-9999")` specifies what strings represent missing data
+  *Missing value handling:* `read.csv(..., na.strings = c("", "NA", "N/A", "-999", "-9999"))`
 
   *Count NAs:* `sum(is.na(column))` works because TRUE counts as 1
+
+  *Check for problems:* `complete.cases(data)` returns TRUE/FALSE for each row; `which(!complete.cases(data))` gives row numbers with NAs
 ]
 
 #pagebreak()
@@ -286,7 +288,7 @@ Using the water quality data from Exercise 2, perform a complete QC audit:
 ]
 
 #hint-box[
-  *Quick structure:* `glimpse(data)` shows all columns, types, and sample values compactly
+  *Quick structure:* `str(data)` shows all columns, types, and sample values compactly
 
   *Full summary:* `summary(data)` gives min, max, mean, median, quartiles, and NA count for numerics
 
@@ -294,13 +296,13 @@ Using the water quality data from Exercise 2, perform a complete QC audit:
 
   *Missing data audit:* `sapply(data, function(x) sum(is.na(x)))` applies NA count to every column
 
-  *Tidyverse approach:* `data |> summarize(across(everything(), ~sum(is.na(.))))`
-
-  *Unique values:* `distinct(data, column)` or `unique(data$column)`
+  *Unique values:* `unique(data$column)` returns unique values in a column
 
   *Logical checks:* `any(temp < 0 | temp > 35, na.rm = TRUE)` — returns TRUE if any value is out of range
 
-  *Filter problems:* `filter(data, temp_c < 0 | temp_c > 35 | do_mg_l < 0 | do_mg_l > 15)`
+  *Find problematic rows:* Use logical indexing: `data[data$temp_c < 0 | data$temp_c > 35, ]`
+
+  *Which rows have problems:* `which(data$temp_c < 0 | data$temp_c > 35)` returns row indices
 ]
 
 #pagebreak()
@@ -320,23 +322,23 @@ Using the water quality data from Exercise 2, perform a complete QC audit:
 
 *Your Primary Tasks:*
 
-Address both requests using dplyr:
+Address both requests using base R subsetting:
 
 *For the fisheries biologist:*
-- Filter to July 23rd observations only
+- Filter to July 23rd observations only using logical indexing
 - Further filter to DO < 6.0 OR turbidity > 15
-- Select only station, date, DO, and turbidity columns
-- Sort by DO ascending (lowest/worst first)
+- Select only station, date, DO, and turbidity columns by name
+- Sort by DO ascending (lowest/worst first) using `order()`
 
 *For the researcher:*
-- Filter for stations CB-5.1 OR CB-5.2
+- Filter for stations CB-5.1 OR CB-5.2 using the `%in%` operator
 - AND temperature between 24-26°C (inclusive)
 - AND DO is not missing
 - Rename `do_mg_l` to `dissolved_oxygen` in your output
 
 *Additional practice:*
-- Count how many rows remain after each filter operation
-- Try selecting columns using `starts_with("t")` to get all columns starting with "t"
+- Count how many rows remain after each filter operation using `nrow()`
+- Try selecting columns using `grep("^t", names(data))` to get all columns starting with "t"
 
 #algorithm-box[
   Think through the data extraction process:
@@ -349,21 +351,21 @@ Address both requests using dplyr:
 ]
 
 #hint-box[
-  *Filter rows:* `filter(data, condition)` — multiple conditions separated by commas are combined with AND
+  *Filter rows with logical indexing:* `data[condition, ]` — e.g., `data[data$temp > 24, ]`
 
-  *Logical operators:* `&` (and), `|` (or), `!` (not) — `filter(data, temp > 24 & temp < 26)`
-
-  *Between shortcut:* `between(temp_c, 24, 26)` is equivalent to `temp_c >= 24 & temp_c <= 26`
+  *Logical operators:* `&` (and), `|` (or), `!` (not) — `data[data$temp > 24 & data$temp < 26, ]`
 
   *Check for NA:* `is.na(x)` returns TRUE if missing; `!is.na(x)` for NOT missing
 
-  *Select columns:* `select(data, col1, col2)` or `select(data, -unwanted_col)` to drop
+  *Select columns by name:* `data[, c("col1", "col2")]` or `data[c("col1", "col2")]`
 
-  *Select helpers:* `starts_with()`, `ends_with()`, `contains()`, `matches()`
+  *Select columns by position:* `data[, 1:3]` selects first three columns
 
-  *Rename while selecting:* `select(data, new_name = old_name)`
+  *Drop columns:* `data[, -which(names(data) == "unwanted")]` or `data$unwanted <- NULL`
 
-  *Sort:* `arrange(data, col)` for ascending; `arrange(data, desc(col))` for descending
+  *Rename columns:* `names(data)[names(data) == "old_name"] <- "new_name"`
+
+  *Sort by column:* `data[order(data$col), ]` for ascending; `data[order(-data$col), ]` for descending (numeric) or `data[order(data$col, decreasing = TRUE), ]`
 ]
 
 #pagebreak()
@@ -391,12 +393,12 @@ Address both requests using dplyr:
 
 *Your Primary Tasks:*
 
-Using `mutate()`, add these new columns to the water quality data:
+Using base R column assignment (`data$new_col <- ...`), add these new columns to the water quality data:
 
 - `temp_f`: temperature in Fahrenheit (F = C × 9/5 + 32)
 - `do_percent_sat`: dissolved oxygen as percent of saturation
 - `log_turbidity`: natural log of turbidity (useful for skewed distributions)
-- `do_status`: water quality classification using `case_when()`
+- `do_status`: water quality classification using nested `ifelse()` or a custom function
 - `month`: extracted from the date
 - `day_of_year`: day number within the year (1-365)
 - `days_since_start`: days elapsed since the earliest date in the dataset
@@ -407,29 +409,26 @@ Using `mutate()`, add these new columns to the water quality data:
 
   - What's the formula to convert Celsius to Fahrenheit?
   - In the water quality classification, why does the order of conditions matter? What happens if you check "DO < 5" before "DO < 2"?
-  - When checking for NA in `case_when()`, does it matter where you put that check? (Hint: yes!)
+  - When checking for NA in nested `ifelse()`, does it matter where you put that check? (Hint: yes!)
   - What date functions would you need to extract month, day of year, or day of week?
   - Write out the z-score formula. What R functions give you mean and standard deviation?
 ]
 
 #hint-box[
-  *Add columns:* `mutate(data, new_col = expression, another = expression)`
+  *Add columns:* `data$new_col <- expression` — e.g., `data$temp_f <- data$temp_c * 9/5 + 32`
 
-  *Conditional classification:*
+  *Conditional classification with ifelse:*
   ```r
-  case_when(
-    is.na(do_mg_l) ~ "Unknown",
-    do_mg_l < 2 ~ "Hypoxic",
-    do_mg_l < 5 ~ "Stressed",
-    do_mg_l < 8 ~ "Adequate",
-    TRUE ~ "Healthy"
-  )
+  ifelse(is.na(do_mg_l), "Unknown",
+    ifelse(do_mg_l < 2, "Hypoxic",
+      ifelse(do_mg_l < 5, "Stressed",
+        ifelse(do_mg_l < 8, "Adequate", "Healthy"))))
   ```
-  Note: Put NA check FIRST, and conditions are checked in order (first TRUE wins)
+  Note: Nested ifelse checks conditions in order (first TRUE wins)
 
-  *Date functions:* `year(date)`, `month(date)`, `day(date)`, `yday(date)` for day of year, `wday(date, label = TRUE)` for weekday
+  *Date functions (base R):* `format(date, "%Y")` for year, `format(date, "%m")` for month, `format(date, "%j")` for day of year, `weekdays(date)` for weekday name
 
-  *Date arithmetic:* `as.numeric(date - min(date))` gives days between dates
+  *Date arithmetic:* `as.numeric(difftime(date, min(date), units = "days"))` gives days between dates
 
   *Math functions:* `log()`, `sqrt()`, `abs()`, `round()`, `mean()`, `sd()`
 ]
@@ -453,7 +452,7 @@ Using `mutate()`, add these new columns to the water quality data:
 
 *Part 1: Station summary report*
 
-Group the data by station and calculate:
+Use `aggregate()` or `split()` + `lapply()` to group the data by station and calculate:
 - Mean temperature
 - Mean DO (handling missing values with `na.rm = TRUE`)
 - Maximum turbidity
@@ -463,11 +462,11 @@ Group the data by station and calculate:
 *Part 2: Station-relative analysis*
 
 Without collapsing the data, add new columns showing:
-- `station_mean_temp`: the average temperature for that observation's station
+- `station_mean_temp`: the average temperature for that observation's station (use `ave()`)
 - `temp_vs_station`: how far each temp is from its station average
 - `station_do_rank`: rank of each observation within its station by DO (highest DO = rank 1)
 
-Remember to `ungroup()` after grouped operations!
+The `ave()` function is key here: it applies a function by group and returns a vector the same length as the input.
 
 #algorithm-box[
   Think through the aggregation logic:
@@ -475,32 +474,33 @@ Remember to `ungroup()` after grouped operations!
   - What's the difference between calculating the mean of ALL observations versus the mean FOR EACH station?
   - If a station has some missing DO values, what happens when you calculate the mean? How do you handle this?
   - How would you calculate "proportion of readings below 6"? (Hint: think about what TRUE/FALSE becomes when averaged)
-  - What's the conceptual difference between `summarize()` (collapses to one row per group) and `mutate()` with groups (adds columns to each row)?
+  - What's the conceptual difference between `aggregate()` (collapses to one row per group) and `ave()` (adds values to each row)?
   - How would you rank observations within each station?
 ]
 
 #hint-box[
-  *Group data:* `group_by(data, station)` — doesn't change appearance but affects subsequent operations
+  *Split data by group:* `split(data, data$station)` — returns a list of data frames, one per station
 
-  *Summarize to one row per group:*
+  *Apply function to each group:* Use `lapply()` or `sapply()` with split data
   ```r
-  data |> group_by(station) |>
-    summarize(mean_temp = mean(temp_c),
-              mean_do = mean(do_mg_l, na.rm = TRUE),
-              max_turb = max(turbidity_ntu),
-              n = n())
+  station_list <- split(data, data$station)
+  sapply(station_list, function(x) mean(x$temp_c, na.rm = TRUE))
+  ```
+
+  *Aggregate function (base R):*
+  ```r
+  aggregate(cbind(temp_c, do_mg_l) ~ station, data = data,
+            FUN = function(x) c(mean = mean(x), n = length(x)))
   ```
 
   *Proportion trick:* `mean(do_mg_l < 6, na.rm = TRUE)` — TRUE=1, FALSE=0, so mean gives proportion
 
-  *Grouped mutate:* Adds group-level calculations to each row without collapsing
+  *Add group means to each row:* Use `ave()` function
   ```r
-  group_by(station) |> mutate(station_mean = mean(temp_c))
+  data$station_mean <- ave(data$temp_c, data$station, FUN = mean)
   ```
 
-  *Ranking:* `min_rank(desc(do_mg_l))` — highest DO gets rank 1
-
-  *Remove grouping:* `ungroup()` after you're done with grouped operations
+  *Ranking within groups:* `ave(data$do_mg_l, data$station, FUN = function(x) rank(-x))`
 ]
 
 #pagebreak()
@@ -538,14 +538,14 @@ Remember to `ungroup()` after grouped operations!
 
 *Part 1: Create and reshape the temperature data*
 #code-block(```r
-temps_wide <- tibble(
+temps_wide <- data.frame(
   station = c("CB-5.1", "CB-5.2"),
   jan = c(4.2, 3.8), apr = c(12.5, 11.9),
   jul = c(26.8, 27.1), oct = c(16.3, 15.8)
 )
 ```)
 
-- Use `pivot_longer()` to create columns: station, month, temperature
+- Use `reshape()` or `stack()` to create columns: station, month, temperature
 - Verify you have 8 rows (2 stations × 4 months)
 
 *Part 2: Pivot back to wide*
@@ -554,15 +554,15 @@ temps_wide <- tibble(
 
 *Part 3: Tidy the multi-variable dataset*
 #code-block(```r
-water_wide <- tibble(
+water_wide <- data.frame(
   station = "CB-5.1",
   do_jun = 6.8, do_jul = 5.2,
   temp_jun = 24.5, temp_jul = 26.8
 )
 ```)
-- Pivot longer to get columns: station, name, value
-- Use `separate()` to split name into variable and month
-- Pivot wider so do and temp become separate columns
+- Reshape to long format to get columns: station, name, value
+- Use `strsplit()` to split name into variable and month
+- Reshape back to wide so do and temp become separate columns
 
 #algorithm-box[
   Think about data shapes:
@@ -570,26 +570,28 @@ water_wide <- tibble(
   - In the wide temperature data, how many "observations" are there really? (Hint: each station-month combination is one observation)
   - What does it mean to "pivot longer"? Which columns become values, and which stay as identifiers?
   - For the reverse operation (pivot wider), when would you want stations as columns instead of rows?
-  - For the messier dataset, what two-step process would tidy it? (Hint: first make it long, then separate the combined column names, then make the variables into columns)
+  - For the messier dataset, what three-step process would tidy it? (Hint: first make it long, then split the combined column names, then reshape variables into columns)
 ]
 
 #hint-box[
-  *Pivot to long:*
+  *Reshape wide to long (base R):*
   ```r
-  pivot_longer(data, cols = jan:oct,
-               names_to = "month", values_to = "temperature")
+  reshape(data, direction = "long", varying = list(c("jan", "apr", "jul", "oct")),
+          v.names = "temperature", timevar = "month", times = c("jan", "apr", "jul", "oct"))
   ```
 
-  *Select columns to pivot:* `cols = c(jan, apr)`, `cols = jan:oct`, `cols = -station` (all except)
+  *Alternative using stack():* `stack(data[, c("jan", "apr", "jul", "oct")])` — creates a two-column data frame
 
-  *Pivot to wide:*
+  *Reshape long to wide (base R):*
   ```r
-  pivot_wider(data, names_from = station, values_from = temperature)
+  reshape(data, direction = "wide", idvar = "month", timevar = "station", v.names = "temperature")
   ```
 
-  *Separate combined names:*
+  *Split a string column:* `strsplit(data$name, "_")` returns a list; use `sapply()` to extract parts
   ```r
-  separate(data, col = name, into = c("variable", "month"), sep = "_")
+  parts <- strsplit(data$name, "_")
+  data$variable <- sapply(parts, "[", 1)
+  data$month <- sapply(parts, "[", 2)
   ```
 
   *Tidy data principles:* Each variable = column, each observation = row, each value = cell
@@ -621,53 +623,54 @@ water_wide <- tibble(
 Build these visualizations using ggplot2:
 
 *Plot 1: Temperature vs DO scatter plot*
-- Map temperature to x-axis, DO to y-axis
-- Color points by station
-- Add a smoothed trend line with `geom_smooth()`
-- Add proper labels with `labs()`
+- Map temperature to x-axis, DO to y-axis using base `plot()`
+- Color points by station using `col` parameter
+- Add a trend line with `abline()` after fitting with `lm()`
+- Add proper labels with `xlab`, `ylab`, and `main` parameters
 
 *Plot 2: Turbidity distributions*
-- Create a histogram with `geom_histogram(bins = 10)`
-- Create a density plot with `geom_density()`
-- Create boxplots by station with `geom_boxplot()`
+- Create a histogram with `hist()` specifying breaks
+- Create a density plot with `density()` and `plot()`
+- Create boxplots by station with `boxplot(turbidity ~ station)`
 - Which visualization is most informative for this data?
 
 *Plot 3: Time series with threshold*
-- Plot DO over date as lines, grouped and colored by station
-- Add points at each observation
-- Add horizontal reference line at DO = 5.0 using `geom_hline()`
+- Plot DO over date as lines using `plot()` with `type = "l"`
+- Use `lines()` to add additional stations in different colors
+- Add points at each observation with `points()`
+- Add horizontal reference line at DO = 5.0 using `abline(h = 5)`
 
-*Plot 4: Faceted comparison*
-- Scatter plot of temp vs DO
-- Use `facet_wrap(~station)` for separate panels
-- Apply `theme_minimal()` and adjust transparency
+*Plot 4: Multi-panel comparison*
+- Set up a panel layout with `par(mfrow = c(2, 2))`
+- Create scatter plots of temp vs DO for each station
+- Add a legend using `legend()`
 
 #algorithm-box[
   Think about visualization design:
 
   - For the temperature-DO relationship, what type of plot best shows the relationship between two continuous variables?
-  - What does mapping color to station accomplish? How is this different from faceting?
+  - What does coloring points by station accomplish? How is this different from using multiple panels?
   - When comparing distributions, what does a boxplot show that a histogram doesn't? What does a density plot show that both miss?
-  - In ggplot's "grammar of graphics," what are the roles of: data, aesthetics (aes), and geoms?
+  - In base R plotting, what are the roles of: the data, graphical parameters (col, pch, cex), and plot types?
   - Why add a reference line at DO = 5.0? How does this context help interpretation?
 ]
 
 #hint-box[
-  *Basic structure:* `ggplot(data, aes(x = temp_c, y = do_mg_l)) + geom_point()`
+  *Basic scatter plot (base R):* `plot(data$temp_c, data$do_mg_l, xlab = "Temperature", ylab = "DO")`
 
-  *Add aesthetics:* `aes(x = ..., y = ..., color = station, size = ..., alpha = ...)`
+  *Add points/lines:* `points(x, y, col = "red")`, `lines(x, y)`, `abline(h = 5)` for horizontal line
 
-  *Common geoms:* `geom_point()`, `geom_line()`, `geom_histogram()`, `geom_density()`, `geom_boxplot()`, `geom_smooth()`
+  *Color by group:* `plot(..., col = as.numeric(data$station))` — converts factor to numeric for colors
 
-  *Layers stack with +:* `ggplot(...) + geom_point() + geom_smooth() + labs(...)`
+  *Histogram:* `hist(data$temp_c, breaks = 10, main = "Temperature Distribution")`
 
-  *Labels:* `labs(title = "...", x = "Temperature (°C)", y = "DO (mg/L)", color = "Station")`
+  *Boxplot:* `boxplot(do_mg_l ~ station, data = data, xlab = "Station", ylab = "DO")`
 
-  *Reference lines:* `geom_hline(yintercept = 5)`, `geom_vline(xintercept = ...)`
+  *Multiple panels:* `par(mfrow = c(2, 2))` sets up a 2x2 grid of plots
 
-  *Faceting:* `facet_wrap(~station)` or `facet_grid(row_var ~ col_var)`
+  *Add legend:* `legend("topright", legend = levels(data$station), col = 1:n, pch = 1)`
 
-  *Themes:* `theme_minimal()`, `theme_bw()`, `theme_classic()`
+  *Save plot:* `png("plot.png"); plot(...); dev.off()` or `pdf("plot.pdf")`
 ]
 
 #pagebreak()
@@ -786,11 +789,15 @@ Simulate hypoxia development:
 - Count days until DO drops below 2.0 (critical hypoxia)
 - Run this simulation 5 times—do you get different results? Why?
 
-*Part 4: Functional iteration with purrr*
+*Part 4: Functional iteration with apply family*
 
-Rewrite Part 2 using `purrr::map_dfr()`:
+Rewrite Part 2 using `lapply()` and `do.call()`:
 ```r
-map_dfr(unique_stations, ~filter(data, station == .x) |> summarize(...))
+results <- lapply(unique_stations, function(st) {
+  subset_data <- data[data$station == st, ]
+  data.frame(station = st, mean_do = mean(subset_data$do_mg_l, na.rm = TRUE))
+})
+do.call(rbind, results)
 ```
 
 Compare this approach to the explicit for loop—which do you find more readable?
@@ -802,7 +809,7 @@ Compare this approach to the explicit for loop—which do you find more readable
   - When accumulating results in a loop, why do you need to create an empty container first?
   - What's the difference between a `for` loop (do this N times) and a `while` loop (do this until condition)?
   - In the hypoxia simulation, what could go wrong if you forget to update the DO value inside the loop?
-  - How is `map()` different from a for loop? What are the trade-offs?
+  - How is `lapply()` different from a for loop? What are the trade-offs?
 ]
 
 #hint-box[
@@ -814,13 +821,14 @@ Compare this approach to the explicit for loop—which do you find more readable
   }
   ```
 
-  *Accumulating results:*
+  *Accumulating results in a list:*
   ```r
   results <- list()
+  stations <- unique(data$station)
   for (i in seq_along(stations)) {
     results[[i]] <- # create data frame for station i
   }
-  bind_rows(results)
+  do.call(rbind, results)  # combine list of data frames
   ```
 
   *While loop:*
@@ -833,9 +841,12 @@ Compare this approach to the explicit for loop—which do you find more readable
   }
   ```
 
-  *Map functions:* `map()` returns list, `map_dbl()` returns numeric, `map_dfr()` returns data frame
+  *Apply family:* `lapply()` returns list, `sapply()` simplifies to vector/matrix, `vapply()` for type-safe
 
-  *Anonymous functions:* `~.x + 1` is shorthand for `function(x) x + 1`
+  *Apply to each group:*
+  ```r
+  lapply(split(data, data$station), function(df) mean(df$do_mg_l, na.rm = TRUE))
+  ```
 
   *Random numbers:* `runif(n, min, max)` — uniform distribution
 ]
@@ -869,7 +880,7 @@ After completing these exercises, consider the following questions:
 #v(0.5em)
 
 #focus-box(title: "The Data Science Workflow", color: primary-color)[
-  You've now practiced the complete workflow: *import* → *tidy* → *transform* → *visualize*, plus essential programming skills (functions and iteration). These techniques form the foundation of all data analysis in R. In upcoming lectures, we'll apply these skills to real Chesapeake Bay datasets with thousands of observations.
+  You've now practiced the complete workflow: *import* → *tidy* → *transform* → *visualize*, plus essential programming skills (functions and iteration). You've done this using base R to understand what happens "under the hood." In upcoming lectures, we'll introduce the tidyverse packages that provide more concise syntax for these same operations—but now you'll understand what they're doing internally.
 ]
 
 #v(0.5em)
