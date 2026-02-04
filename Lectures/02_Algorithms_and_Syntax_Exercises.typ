@@ -1,5 +1,5 @@
 // =============================================================================
-// Lecture 2: Introduction to the R for Environmental Data Science
+// Lecture 2: Algorithms and Syntax — Programming Exercises
 // Environmental Data Science (ENST431/631)
 // Author: Akash Koppa
 // =============================================================================
@@ -84,6 +84,7 @@
 #let context-box(body) = { focus-box(title: "🌍 The Problem", color: rgb("#5a8f7b"), body) }
 #let algorithm-box(body) = { focus-box(title: "🧠 Think Before You Code", color: accent-color, body) }
 #let hint-box(body) = { focus-box(title: "💡 R Syntax Hints", color: primary-color.lighten(10%), body) }
+#let python-hint-box(body) = { focus-box(title: "🐍 Python Syntax Hints", color: rgb("#306998"), body) }
 
 #let code-block(code) = {
   v(0.3em)
@@ -99,8 +100,8 @@
 // =============================================================================
 
 #title-block(
-  title: "The R Programming Language",
-  subtitle: "An Introduction to R for Environmental Data Science",
+  title: "Algorithms and Syntax",
+  subtitle: "Programming Exercises for Environmental Data Science",
   author: "Instructor: Akash Koppa",
   date: "Lecture 2 — Spring Semester 2026"
 )
@@ -126,15 +127,15 @@ For each exercise, follow this workflow:
 
 + *Read the problem*: carefully and understand what is being asked.
 + *Design the algorithm*: describe the logical steps without any code. What data do you need? What calculations? What decisions? What is the output?
-+ *Translate to R syntax*: convert your algorithm into working R code.
-+ *Test and verify*: use a proper Integrated Development Environment (IDE) such as RStudio.
++ *Translate to code*: convert your algorithm into working R or Python code.
++ *Test and verify*: use a proper Integrated Development Environment (IDE) such as RStudio, VS Code, or Spyder.
 
-The exercises are structured around realistic environmental data science problems: importing monitoring data, cleaning and validating measurements, transforming variables, summarizing by groups, reshaping datasets, and creating visualizations. Each exercise builds on the previous ones, using simulated Chesapeake Bay watershed data throughout.
+//The exercises are structured around realistic environmental data science problems: importing monitoring data, cleaning and validating measurements, transforming variables, summarizing by groups, reshaping datasets, and combining data from multiple sources. Each exercise builds on the previous ones, using simulated Chesapeake Bay watershed data throughout. Both R and Python syntax hints are provided for each exercise.
 
 #v(0.5em)
 
 #focus-box(title: "Setup Required", color: warning-color)[
-  Before starting, ensure you have R and RStudio installed. These exercises intentionally use *base R* to help you understand fundamental programming concepts. Later lectures will introduce the tidyverse for more concise data manipulation, but first you must understand what happens "under the hood."
+  Before starting, ensure you have R and RStudio (or VS Code / Spyder) installed. If you wish to follow along in Python, install Python 3 with the `pandas` and `numpy` packages. These exercises intentionally use *base R* (and equivalent base Python / pandas) to help you understand algorithms. Later lectures will techniques for more concise data manipulation."
 ]
 
 #pagebreak()
@@ -195,6 +196,20 @@ Create variables for each piece of station metadata with appropriate names. Crea
   *Position finding:* `which.min()`, `which.max()`, `which()` return positions, not values
 ]
 
+#python-hint-box[
+  *Creating variables:* `station_id = "CB-5.1"` or `depth = 2` — Python infers types automatically
+
+  *Lists and arrays:* `do_readings = [8.2, 7.8, 7.1, ...]` — or use NumPy: `import numpy as np; do_readings = np.array([8.2, 7.8, ...])`
+
+  *Dictionaries for named data:* `monthly_temps = {"Jan": 4.2, "Feb": 4.5, ...}` — access with `monthly_temps["Jul"]`
+
+  *Statistics (NumPy):* `np.mean()`, `np.std()`, `np.min()`, `np.max()`, `sum()`
+
+  *Boolean indexing (NumPy):* `do_readings[do_readings < 5.0]` — works the same as R
+
+  *Position finding:* `np.argmin()`, `np.argmax()` return index positions
+]
+
 #pagebreak()
 
 // =============================================================================
@@ -246,6 +261,18 @@ Import the data from `water_quality.csv` and:
   *Count NAs:* `sum(is.na(column))` works because TRUE counts as 1
 
   *Check for problems:* `complete.cases(data)` returns TRUE/FALSE for each row; `which(!complete.cases(data))` gives row numbers with NAs
+]
+
+#python-hint-box[
+  *Import:* `import pandas as pd` then `df = pd.read_csv("filename.csv", na_values=["-999", "-9999"])`
+
+  *Check structure:* `df.dtypes` shows column types; `df.info()` gives a compact summary
+
+  *Column type conversion:* `df['station'] = df['station'].astype('category')` — `pd.to_datetime(df['date'])` for dates
+
+  *Count NAs:* `df['column'].isna().sum()` — or `df.isna().sum()` for all columns at once
+
+  *Check for problems:* `df.dropna()` removes rows with any NAs; `df[df.isna().any(axis=1)]` shows rows with NAs
 ]
 
 #pagebreak()
@@ -303,6 +330,22 @@ Using the water quality data from Exercise 2, perform a complete QC audit:
   *Find problematic rows:* Use logical indexing: `data[data$temp_c < 0 | data$temp_c > 35, ]`
 
   *Which rows have problems:* `which(data$temp_c < 0 | data$temp_c > 35)` returns row indices
+]
+
+#python-hint-box[
+  *Quick structure:* `df.info()` shows columns, types, and non-null counts; `df.shape` gives (rows, cols)
+
+  *Full summary:* `df.describe()` gives count, mean, std, min, quartiles, max for numeric columns
+
+  *Column names:* `df.columns` returns list of column names
+
+  *Missing data audit:* `df.isna().sum()` for counts; `df.isna().mean() * 100` for percentages
+
+  *Unique values:* `df['column'].unique()` or `df['column'].nunique()` for count
+
+  *Boolean checks:* `((df['temp_c'] < 0) | (df['temp_c'] > 35)).any()` — parentheses required around each condition
+
+  *Find problematic rows:* `df[(df['temp_c'] < 0) | (df['temp_c'] > 35)]`
 ]
 
 #pagebreak()
@@ -368,6 +411,22 @@ Address both requests using base R subsetting:
   *Sort by column:* `data[order(data$col), ]` for ascending; `data[order(-data$col), ]` for descending (numeric) or `data[order(data$col, decreasing = TRUE), ]`
 ]
 
+#python-hint-box[
+  *Filter rows:* `df[df['temp_c'] > 24]` — or `df.query('temp_c > 24')`
+
+  *Logical operators:* `&` (and), `|` (or), `~` (not) — must wrap each condition in parentheses: `df[(df['temp_c'] > 24) & (df['temp_c'] < 26)]`
+
+  *Check membership:* `df[df['station'].isin(['CB-5.1', 'CB-5.2'])]`
+
+  *Check for NA:* `df['col'].isna()` or `df['col'].notna()` for NOT missing
+
+  *Select columns:* `df[['col1', 'col2']]` — or `df.loc[:, ['col1', 'col2']]`
+
+  *Rename columns:* `df.rename(columns={'old_name': 'new_name'})`
+
+  *Sort:* `df.sort_values('col')` for ascending; `df.sort_values('col', ascending=False)` for descending
+]
+
 #pagebreak()
 
 // =============================================================================
@@ -431,6 +490,23 @@ Using base R column assignment (`data$new_col <- ...`), add these new columns to
   *Date arithmetic:* `as.numeric(difftime(date, min(date), units = "days"))` gives days between dates
 
   *Math functions:* `log()`, `sqrt()`, `abs()`, `round()`, `mean()`, `sd()`
+]
+
+#python-hint-box[
+  *Add columns:* `df['new_col'] = expression` — e.g., `df['temp_f'] = df['temp_c'] * 9/5 + 32`
+
+  *Conditional classification with np.select:*
+  ```python
+  conditions = [df['do'].isna(), df['do'] < 2, df['do'] < 5, df['do'] < 8]
+  choices = ["Unknown", "Hypoxic", "Stressed", "Adequate"]
+  df['status'] = np.select(conditions, choices, default="Healthy")
+  ```
+
+  *Date functions (pandas):* `df['date'].dt.month` for month, `df['date'].dt.day_of_year` for day of year, `df['date'].dt.day_name()` for weekday name
+
+  *Date arithmetic:* `(df['date'] - df['date'].min()).dt.days` gives days between dates
+
+  *Math functions:* `np.log()`, `np.sqrt()`, `np.abs()`, `.round()`, `.mean()`, `.std()`
 ]
 
 #pagebreak()
@@ -501,6 +577,23 @@ The `ave()` function is key here: it applies a function by group and returns a v
   ```
 
   *Ranking within groups:* `ave(data$do_mg_l, data$station, FUN = function(x) rank(-x))`
+]
+
+#python-hint-box[
+  *Group and aggregate:*
+  ```python
+  df.groupby('station').agg(
+      mean_temp=('temp_c', 'mean'),
+      mean_do=('do_mg_l', 'mean'),
+      n_obs=('temp_c', 'count')
+  )
+  ```
+
+  *Proportion trick:* `df.groupby('station')['do_mg_l'].apply(lambda x: (x < 6).mean())`
+
+  *Add group stats to each row (like `ave()`):* `df['station_mean'] = df.groupby('station')['temp_c'].transform('mean')`
+
+  *Ranking within groups:* `df['rank'] = df.groupby('station')['do_mg_l'].rank(ascending=False)`
 ]
 
 #pagebreak()
@@ -597,80 +690,140 @@ water_wide <- data.frame(
   *Tidy data principles:* Each variable = column, each observation = row, each value = cell
 ]
 
+#python-hint-box[
+  *Melt (wide to long):*
+  ```python
+  pd.melt(df, id_vars='station', var_name='month', value_name='temperature')
+  ```
+
+  *Pivot (long to wide):*
+  ```python
+  df.pivot(index='month', columns='station', values='temperature')
+  ```
+
+  *Split a string column:* `df[['variable', 'month']] = df['name'].str.split('_', expand=True)`
+
+  *Pivot table (handles duplicates):* `df.pivot_table(index=['station', 'month'], columns='variable', values='value')`
+]
+
 #pagebreak()
 
 // =============================================================================
-// EXERCISE 8: Data Visualization
+// EXERCISE 8: Combining Monitoring Databases
 // =============================================================================
 
-#exercise-header(number: 8, title: "Creating the Quarterly Visualization Report", difficulty: "Intermediate")
+#exercise-header(number: 8, title: "Combining Monitoring Databases", difficulty: "Intermediate")
 
 #context-box[
-  The communications team needs visualizations for the quarterly stakeholder meeting. They have requested four specific plots:
+  The Chesapeake Bay Program maintains separate databases for different monitoring programs. You've been asked to consolidate data from multiple sources:
 
-  1. *Temperature-DO relationship plot*: A scatter plot showing how dissolved oxygen relates to temperature, with points colored by station, a trend line, and clearly labeled axes.
+  1. Your existing *water quality data* from previous exercises.
+  2. A *station metadata table* containing geographic and operational information:
 
-  2. *Turbidity distribution comparison*: A comparison of turbidity distributions across stations using histograms, density plots, and boxplots to determine which visualization best tells the story.
+  #code-block(```
+  station  | region      | type      | lat     | lon
+  ---------|-------------|-----------|---------|--------
+  CB-5.1   | Main Stem   | Fixed     | 38.978  | -76.381
+  CB-5.2   | Main Stem   | Fixed     | 38.856  | -76.372
+  CB-5.3   | Main Stem   | Fixed     | 38.742  | -76.321
+  CB-6.1   | Lower Bay   | Rotating  | 37.587  | -76.138
+  ```)
 
-  3. *DO time series with threshold*: A time series plot of dissolved oxygen for each station, with a horizontal reference line at 5.0 mg/L (the stress threshold) to identify which stations are struggling.
+  3. A separate *nutrient monitoring dataset* with some overlapping stations and dates:
 
-  4. *Station comparison panels*: A faceted temperature-DO scatter plot with each station in its own panel for pattern comparison.
+  #code-block(```
+  station  | date       | nitrogen_mg_l | phosphorus_mg_l
+  ---------|------------|---------------|----------------
+  CB-5.1   | 2025-06-15 | 1.2           | 0.08
+  CB-5.2   | 2025-06-15 | 1.5           | 0.12
+  CB-6.1   | 2025-06-15 | 0.9           | 0.06
+  ```)
 
+  Your supervisor wants all data consolidated into a single comprehensive dataset for analysis.
 ]
 
 *Your Primary Tasks:*
 
-Build these visualizations using ggplot2:
+*Part 1: Create and merge station metadata*
 
-*Plot 1: Temperature vs DO scatter plot*
-- Map temperature to x-axis, DO to y-axis using base `plot()`
-- Color points by station using `col` parameter
-- Add a trend line with `abline()` after fitting with `lm()`
-- Add proper labels with `xlab`, `ylab`, and `main` parameters
+#code-block(```r
+station_meta <- data.frame(
+  station = c("CB-5.1", "CB-5.2", "CB-5.3", "CB-6.1"),
+  region = c("Main Stem", "Main Stem", "Main Stem", "Lower Bay"),
+  type = c("Fixed", "Fixed", "Fixed", "Rotating"),
+  lat = c(38.978, 38.856, 38.742, 37.587),
+  lon = c(-76.381, -76.372, -76.321, -76.138)
+)
+```)
 
-*Plot 2: Turbidity distributions*
-- Create a histogram with `hist()` specifying breaks
-- Create a density plot with `density()` and `plot()`
-- Create boxplots by station with `boxplot(turbidity ~ station)`
-- Which visualization is most informative for this data?
+- Use `merge()` to join station metadata with the water quality data by station
+- Compare an inner join (default) vs. a left join (`all.x = TRUE`) — what changes in the row count?
+- Identify which stations appear in the metadata but not in the water quality data (and vice versa)
 
-*Plot 3: Time series with threshold*
-- Plot DO over date as lines using `plot()` with `type = "l"`
-- Use `lines()` to add additional stations in different colors
-- Add points at each observation with `points()`
-- Add horizontal reference line at DO = 5.0 using `abline(h = 5)`
+*Part 2: Merge nutrient data*
 
-*Plot 4: Multi-panel comparison*
-- Set up a panel layout with `par(mfrow = c(2, 2))`
-- Create scatter plots of temp vs DO for each station
-- Add a legend using `legend()`
+#code-block(```r
+nutrient_data <- data.frame(
+  station = c("CB-5.1", "CB-5.2", "CB-6.1"),
+  date = as.Date(c("2025-06-15", "2025-06-15", "2025-06-15")),
+  nitrogen_mg_l = c(1.2, 1.5, 0.9),
+  phosphorus_mg_l = c(0.08, 0.12, 0.06)
+)
+```)
+
+- Merge nutrient data with water quality data by *both* station AND date
+- How many rows match? Why might some rows not match?
+- Try a left join to keep all water quality rows even without nutrient matches
+
+*Part 3: Stacking datasets*
+
+- Suppose you receive a second batch of water quality data with the same column structure
+- Use `rbind()` to stack the two datasets vertically
+- Verify the combined dataset has the expected number of rows
+- What happens if the two datasets have different columns?
 
 #algorithm-box[
-  Think about visualization design:
+  Think through the data combination process:
 
-  - For the temperature-DO relationship, what type of plot best shows the relationship between two continuous variables?
-  - What does coloring points by station accomplish? How is this different from using multiple panels?
-  - When comparing distributions, what does a boxplot show that a histogram doesn't? What does a density plot show that both miss?
-  - In base R plotting, what are the roles of: the data, graphical parameters (col, pch, cex), and plot types?
-  - Why add a reference line at DO = 5.0? How does this context help interpretation?
+  - What's the difference between *merging* (adding columns from another table) and *stacking* (adding rows)?
+  - When you merge two tables, what happens to rows that exist in one table but not the other? Draw a Venn diagram for inner, left, right, and full joins.
+  - Why is it important to specify *which columns* to match on?
+  - What could go wrong if two datasets have a column with the same name but different meanings?
+  - How would you verify that a merge produced the correct result?
 ]
 
 #hint-box[
-  *Basic scatter plot (base R):* `plot(data$temp_c, data$do_mg_l, xlab = "Temperature", ylab = "DO")`
+  *Inner join (default):* `merge(x, y, by = "station")` — keeps only rows that match in both
 
-  *Add points/lines:* `points(x, y, col = "red")`, `lines(x, y)`, `abline(h = 5)` for horizontal line
+  *Left join:* `merge(x, y, by = "station", all.x = TRUE)` — keeps all rows from x
 
-  *Color by group:* `plot(..., col = as.numeric(data$station))` — converts factor to numeric for colors
+  *Right join:* `merge(x, y, by = "station", all.y = TRUE)` — keeps all rows from y
 
-  *Histogram:* `hist(data$temp_c, breaks = 10, main = "Temperature Distribution")`
+  *Full join:* `merge(x, y, by = "station", all = TRUE)` — keeps all rows from both
 
-  *Boxplot:* `boxplot(do_mg_l ~ station, data = data, xlab = "Station", ylab = "DO")`
+  *Multi-column join:* `merge(x, y, by = c("station", "date"))` — match on multiple columns
 
-  *Multiple panels:* `par(mfrow = c(2, 2))` sets up a 2x2 grid of plots
+  *Stack data frames:* `rbind(df1, df2)` — columns must match exactly
 
-  *Add legend:* `legend("topright", legend = levels(data$station), col = 1:n, pch = 1)`
+  *Find differences:* `setdiff(x$station, y$station)` — values in x but not y
 
-  *Save plot:* `png("plot.png"); plot(...); dev.off()` or `pdf("plot.pdf")`
+  *Find overlap:* `intersect(x$station, y$station)` — values in both
+]
+
+#python-hint-box[
+  *Inner join:* `pd.merge(df1, df2, on='station')` — or `df1.merge(df2, on='station')`
+
+  *Left join:* `pd.merge(df1, df2, on='station', how='left')`
+
+  *Multi-column join:* `pd.merge(df1, df2, on=['station', 'date'])`
+
+  *Stack DataFrames:* `pd.concat([df1, df2], ignore_index=True)`
+
+  *Find differences:* `set(df1['station']) - set(df2['station'])`
+
+  *Find overlap:* `set(df1['station']) & set(df2['station'])`
+
+  *Check merge result:* `df.shape` to verify row/column counts; use `indicator=True` in `pd.merge()` to see which rows matched
 ]
 
 #pagebreak()
@@ -745,6 +898,26 @@ Create these functions:
   *Access list elements:* `result$mean_temp` or `result[["mean_temp"]]`
 
   *Call with named arguments:* `my_function(arg2 = 10, arg1 = 5)` — order doesn't matter if named
+]
+
+#python-hint-box[
+  *Function structure:*
+  ```python
+  def my_function(arg1, arg2=default_value):
+      result = # calculations
+      return result
+  ```
+
+  *Arguments with defaults:* `def func(x, threshold=5):` — threshold is optional, defaults to 5
+
+  *Multiple return values:* Return a dictionary
+  ```python
+  return {"mean_temp": mt, "mean_do": md, "n": n}
+  ```
+
+  *Access dict elements:* `result["mean_temp"]` or `result.get("mean_temp")`
+
+  *Call with named arguments:* `my_function(arg2=10, arg1=5)` — order doesn't matter if named
 ]
 
 #pagebreak()
@@ -851,6 +1024,37 @@ Compare this approach to the explicit for loop—which do you find more readable
   *Random numbers:* `runif(n, min, max)` — uniform distribution
 ]
 
+#python-hint-box[
+  *For loop:*
+  ```python
+  for station in df['station'].unique():
+      subset = df[df['station'] == station]
+      print(f"Processing {station}")
+  ```
+
+  *Accumulating results in a list:*
+  ```python
+  results = []
+  for station in stations:
+      results.append({"station": station, "mean_temp": ...})
+  pd.DataFrame(results)
+  ```
+
+  *While loop:*
+  ```python
+  import random
+  do_level = 8.0
+  days = 0
+  while do_level >= 2.0:
+      do_level -= random.uniform(0.1, 0.5)
+      days += 1
+  ```
+
+  *List comprehension:* `[mean(subset) for subset in groups]` — concise alternative to loops
+
+  *Random numbers:* `random.uniform(min, max)` or `np.random.uniform(min, max)`
+]
+
 #pagebreak()
 
 // =============================================================================
@@ -880,7 +1084,7 @@ After completing these exercises, consider the following questions:
 #v(0.5em)
 
 #focus-box(title: "The Data Science Workflow", color: primary-color)[
-  You've now practiced the complete workflow: *import* → *tidy* → *transform* → *visualize*, plus essential programming skills (functions and iteration). You've done this using base R to understand what happens "under the hood." In upcoming lectures, we'll introduce the tidyverse packages that provide more concise syntax for these same operations—but now you'll understand what they're doing internally.
+  You've now practiced the core workflow: *import* → *tidy* → *transform* → *combine*, plus essential programming skills (functions and iteration). You've done this using both R and Python to understand what happens "under the hood." In upcoming lectures, we'll introduce the tidyverse packages (R) and more advanced pandas patterns (Python) for more concise syntax—but now you'll understand what they're doing internally.
 ]
 
 #v(0.5em)
@@ -888,7 +1092,8 @@ After completing these exercises, consider the following questions:
 #focus-box(title: "Resources for Further Practice", color: accent-color)[
   - *R for Data Science* (2nd ed.): #link("https://r4ds.hadley.nz")[r4ds.hadley.nz] — free online, covers everything in these exercises
   - *RStudio Cheatsheets*: #link("https://posit.co/resources/cheatsheets")[posit.co/resources/cheatsheets] — one-page reference guides
-  - *Tidyverse documentation*: #link("https://www.tidyverse.org")[tidyverse.org] — detailed function help
+  - *Python Data Science Handbook*: #link("https://jakevdp.github.io/PythonDataScienceHandbook")[jakevdp.github.io/PythonDataScienceHandbook] — free online, covers pandas and NumPy
+  - *pandas documentation*: #link("https://pandas.pydata.org/docs")[pandas.pydata.org/docs] — detailed function help
 ]
 
 #v(2em)

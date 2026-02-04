@@ -91,14 +91,12 @@
 
 #lecture-slide(title: "Today's Agenda")[
   - *Introductions*
-  - *Goals of this Course*
+  - *Philosophy of the Course*
   - *What is Environmental Data Science?*
   - *Some Important Definitions*
   - *Exploratory Data Analysis*
   - *Data and Methods*
   - *Software*
-  - *R Programming Language*
-  - *Logistics for the Course*
 ]
 
 #lecture-slide(title: "Introductions")[

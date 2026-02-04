@@ -1,5 +1,5 @@
 // =============================================================================
-// Lecture 2: Algorithms vs. Syntax — R Programming Exercises
+// Lecture 2: Algorithms and Syntax — Programming Exercises
 // Environmental Data Science (ENST431)
 // Solutions Document
 // =============================================================================
@@ -41,7 +41,7 @@
 }
 
 #align(center)[
-  #text(size: 18pt, weight: "bold", fill: primary-color)[Solutions: R Programming Exercises]
+  #text(size: 18pt, weight: "bold", fill: primary-color)[Solutions: Algorithms and Syntax Exercises]
   #v(0.5em)
   #text(size: 12pt)[ENST431: Environmental Data Science]
 ]
@@ -94,7 +94,16 @@ monthly_temps <- c(
   Jul = 26.8, Aug = 26.5, Sep = 22.4, Oct = 16.3, Nov = 10.7, Dec = 6.1
 )
 
-# 3. Statistics
+# 3. Statistics — first without built-in functions
+# Mean: sum of all values divided by the number of values
+#   mean = (x_1 + x_2 + ... + x_n) / n
+do_mean_manual <- sum(do_readings) / length(do_readings)
+
+# Standard deviation: square root of the average squared deviation from the mean
+#   sd = sqrt( sum((x_i - mean)^2) / (n - 1) )
+do_sd_manual <- sqrt(sum((do_readings - do_mean_manual)^2) / (length(do_readings) - 1))
+
+# Now using built-in functions (same result)
 do_mean <- mean(do_readings)
 do_sd <- sd(do_readings)
 do_cv <- (do_sd / do_mean) * 100
@@ -526,93 +535,89 @@ names(water_tidy) <- gsub("value\\.", "", names(water_tidy))
 // EXERCISE 8
 // =============================================================================
 
-#solution-header("Exercise 8: Data Visualization")
+#solution-header("Exercise 8: Combining Monitoring Databases")
 
 #section-title("(a) Algorithm in Plain English")
-1. *Scatter:* Use base `plot()` with Temp (x) and DO (y). Color points by Station. Add a linear trend line using `abline()` with `lm()`.
-2. *Boxplot:* Use `boxplot()` with formula notation (Turbidity ~ Station).
-3. *Time Series:* Use `plot()` with Date (x) and DO (y). Add lines for each station using `lines()`. Add horizontal reference line at y=5 using `abline(h=5)`.
-4. *Multi-panel:* Use `par(mfrow = c(2, 2))` to set up panels, then create separate plots for each station.
+1. *Create metadata:* Build a data frame containing station metadata (region, type, coordinates).
+2. *Inner join:* Use `merge()` with default settings to join metadata with water quality data—only matching stations are kept.
+3. *Left join:* Use `merge()` with `all.x = TRUE` to keep all water quality rows, filling in NA where metadata is missing.
+4. *Compare:* Check which stations are in one dataset but not the other using `setdiff()`.
+5. *Nutrient merge:* Create the nutrient data frame and merge by both station AND date.
+6. *Stack:* Use `rbind()` to combine two data frames with identical columns.
 
 #section-title("(b) Algorithm in Pseudocode")
 #code-box(```text
-// Scatter plot with trend line
-PLOT(temp, do)
-POINTS colored by station
-fit = LM(do ~ temp)
-ABLINE(fit)
+// Part 1: Merge metadata
+metadata = CREATE data frame with station info
+merged_inner = MERGE(water_data, metadata, by = "station")  // inner
+merged_left = MERGE(water_data, metadata, by = "station", all.x = TRUE)  // left
 
-// Boxplot
-BOXPLOT(turbidity ~ station)
+// Compare row counts
+PRINT nrow(merged_inner) vs nrow(merged_left)
 
-// Time series
-PLOT(date, do, type="n")  // empty plot
-FOR each station:
-  LINES(subset data)
-ABLINE(h=5)
+// Find mismatches
+missing_from_wq = SETDIFF(metadata$station, water_data$station)
+missing_from_meta = SETDIFF(water_data$station, metadata$station)
 
-// Multi-panel
-PAR(mfrow = c(2, 2))
-FOR each station:
-  PLOT subset data
+// Part 2: Nutrient merge
+nutrients = CREATE data frame with nutrient readings
+combined = MERGE(water_data, nutrients, by = c("station", "date"), all.x = TRUE)
+
+// Part 3: Stack
+batch2 = CREATE second batch of water quality data
+stacked = RBIND(water_data, batch2)
+VERIFY nrow(stacked) == nrow(water_data) + nrow(batch2)
 ```)
 
 #section-title("(c) R Code Solution")
 #code-box(```r
-# Plot 1: Scatter with trend line
-# Assign colors based on station
-station_colors <- as.numeric(factor(water_enhanced$station))
-plot(water_enhanced$temp_c, water_enhanced$do_mg_l,
-     xlab = "Temperature (C)", ylab = "DO (mg/L)",
-     main = "DO vs Temperature",
-     col = station_colors, pch = 16)
+# Part 1: Create station metadata
+station_meta <- data.frame(
+  station = c("CB-5.1", "CB-5.2", "CB-5.3", "CB-6.1"),
+  region = c("Main Stem", "Main Stem", "Main Stem", "Lower Bay"),
+  type = c("Fixed", "Fixed", "Fixed", "Rotating"),
+  lat = c(38.978, 38.856, 38.742, 37.587),
+  lon = c(-76.381, -76.372, -76.321, -76.138)
+)
 
-# Add trend line
-fit <- lm(do_mg_l ~ temp_c, data = water_enhanced)
-abline(fit, col = "blue", lwd = 2)
+# Inner join: only stations present in BOTH datasets
+merged_inner <- merge(water_data, station_meta, by = "station")
+cat("Inner join rows:", nrow(merged_inner), "\n")
 
-# Add legend
-legend("topright", legend = levels(factor(water_enhanced$station)),
-       col = 1:length(unique(water_enhanced$station)), pch = 16)
+# Left join: keep all water quality rows
+merged_left <- merge(water_data, station_meta, by = "station", all.x = TRUE)
+cat("Left join rows:", nrow(merged_left), "\n")
 
-# Plot 2: Boxplot
-boxplot(turbidity_ntu ~ station, data = water_enhanced,
-        xlab = "Station", ylab = "Turbidity (NTU)",
-        main = "Turbidity by Station",
-        col = "lightblue")
+# Which stations are in metadata but not in water quality data?
+missing_from_wq <- setdiff(station_meta$station, unique(water_data$station))
+cat("Stations in metadata but not in water quality:", missing_from_wq, "\n")
 
-# Plot 3: Time Series
-stations <- unique(water_enhanced$station)
-colors <- 1:length(stations)
+# Which stations are in water quality but not in metadata?
+missing_from_meta <- setdiff(unique(water_data$station), station_meta$station)
+cat("Stations in water quality but not in metadata:", missing_from_meta, "\n")
 
-# Create empty plot with correct range
-plot(water_enhanced$date, water_enhanced$do_mg_l,
-     type = "n",
-     xlab = "Date", ylab = "DO (mg/L)",
-     main = "DO Time Series by Station")
+# Part 2: Nutrient data merge
+nutrient_data <- data.frame(
+  station = c("CB-5.1", "CB-5.2", "CB-6.1"),
+  date = as.Date(c("2025-06-15", "2025-06-15", "2025-06-15")),
+  nitrogen_mg_l = c(1.2, 1.5, 0.9),
+  phosphorus_mg_l = c(0.08, 0.12, 0.06)
+)
 
-# Add lines for each station
-for (i in seq_along(stations)) {
-  subset_data <- water_enhanced[water_enhanced$station == stations[i], ]
-  subset_data <- subset_data[order(subset_data$date), ]
-  lines(subset_data$date, subset_data$do_mg_l, col = colors[i])
-  points(subset_data$date, subset_data$do_mg_l, col = colors[i], pch = 16, cex = 0.5)
-}
+# Merge by both station and date
+combined <- merge(water_data, nutrient_data,
+                  by = c("station", "date"), all.x = TRUE)
+cat("Combined rows:", nrow(combined), "\n")
+cat("Rows with nutrient data:", sum(!is.na(combined$nitrogen_mg_l)), "\n")
 
-# Add threshold line and legend
-abline(h = 5.0, lty = 2, col = "red")
-legend("topright", legend = stations, col = colors, lty = 1, pch = 16)
-
-# Plot 4: Multi-panel plots
-par(mfrow = c(2, 2))
-for (st in stations[1:4]) {  # First 4 stations
-  subset_data <- water_enhanced[water_enhanced$station == st, ]
-  plot(subset_data$temp_c, subset_data$do_mg_l,
-       xlab = "Temperature (C)", ylab = "DO (mg/L)",
-       main = paste("Station:", st),
-       pch = 16, col = "darkgreen")
-}
-par(mfrow = c(1, 1))  # Reset to single panel
+# Part 3: Stacking datasets
+# Create a small second batch with same columns as water_data
+batch2 <- water_data[1:5, ]  # simulate a second batch
+stacked <- rbind(water_data, batch2)
+cat("Original rows:", nrow(water_data), "\n")
+cat("Batch 2 rows:", nrow(batch2), "\n")
+cat("Stacked rows:", nrow(stacked), "\n")
+cat("Verified:", nrow(stacked) == nrow(water_data) + nrow(batch2), "\n")
 ```)
 
 #pagebreak()
@@ -756,6 +761,8 @@ WHILE do_level >= 2.0:
 ```)
 
 #section-title("(c) R Code Solution")
+
+#text(weight: "semibold", size: 9pt)[Parts 1 & 2: For loops]
 #code-box(```r
 # Part 1: For loop with printing
 stations <- unique(water_enhanced$station)
@@ -784,8 +791,12 @@ for (i in seq_along(stations)) {
 # Combine list into single data frame
 final_results <- do.call(rbind, station_summaries)
 print(final_results)
+```)
 
-# Part 3: While loop simulation
+#pagebreak()
+
+#text(weight: "semibold", size: 9pt)[Part 3: While loop simulation]
+#code-box(```r
 do_level <- 8.0
 days <- 0
 
@@ -807,9 +818,26 @@ for (run in 1:5) {
   }
   print(paste("Run", run, ":", days, "days"))
 }
+```)
 
-# Part 4: Using lapply() instead of for loop
-results_list <- lapply(stations, function(st) {
+#text(weight: "semibold", size: 9pt)[Part 4: Two ways to iterate — for loop vs lapply]
+#code-box(```r
+# Both approaches produce the exact same result.
+
+# Approach A: For loop (explicit, step-by-step — the algorithmic way)
+results_loop <- list()
+for (i in seq_along(stations)) {
+  st_data <- water_enhanced[water_enhanced$station == stations[i], ]
+  results_loop[[i]] <- data.frame(
+    station = stations[i],
+    mean_do = mean(st_data$do_mg_l, na.rm = TRUE),
+    n = nrow(st_data)
+  )
+}
+final_loop <- do.call(rbind, results_loop)
+
+# Approach B: lapply (functional style — same logic, more compact)
+results_lapply <- lapply(stations, function(st) {
   st_data <- water_enhanced[water_enhanced$station == st, ]
   data.frame(
     station = st,
@@ -817,8 +845,9 @@ results_list <- lapply(stations, function(st) {
     n = nrow(st_data)
   )
 })
+final_lapply <- do.call(rbind, results_lapply)
 
-# Combine into single data frame
-final_results_lapply <- do.call(rbind, results_list)
-print(final_results_lapply)
+# Both produce the same result
+print(final_loop)
+print(final_lapply)
 ```)
