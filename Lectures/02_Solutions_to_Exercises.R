@@ -82,7 +82,7 @@ cat("\n--- Exercise 2 ---\n")
 
 # Import with explicit handling of NAs
 water_data <- read.csv(
-  "/Users/akashkoppa/Documents/teaching/env-data-science/Lectures/water_quality.csv",
+  "/Users/akashkoppa/Documents/teaching/env-data-science/Lectures/Data/02_Algorithms/water_quality.csv",
   na.strings = c("", "NA", "N/A", "-999", "-9999"),
   stringsAsFactors = FALSE
 )
@@ -111,9 +111,17 @@ cat("\n--- Exercise 3 ---\n")
 str(water_data)
 summary(water_data)
 
-# 2. Missing data summary using sapply
-na_counts <- sapply(water_data, function(x) sum(is.na(x)))
-na_percent <- sapply(water_data, function(x) mean(is.na(x)) * 100)
+# 2. Missing data summary
+# APPROACH A: Using a for loop (explicit, step-by-step)
+na_counts <- c()
+na_percent <- c()
+
+for (col_name in names(water_data)) {
+  col_data <- water_data[[col_name]]
+  na_counts[col_name] <- sum(is.na(col_data))
+  na_percent[col_name] <- mean(is.na(col_data)) * 100
+}
+
 missing_summary <- data.frame(
   variable = names(na_counts),
   na_count = na_counts,
@@ -121,6 +129,11 @@ missing_summary <- data.frame(
 )
 
 print(missing_summary)
+
+# APPROACH B: Using sapply (compact, same result)
+# sapply applies a function to each column and returns a vector
+na_counts_v2 <- sapply(water_data, function(x) sum(is.na(x)))
+na_percent_v2 <- sapply(water_data, function(x) mean(is.na(x)) * 100)
 
 # 3 & 4. Validation checks (Plausible ranges)
 # Temp: 0-35, DO: 0-15, pH: 6-9
@@ -213,9 +226,16 @@ water_enhanced$do_status <- ifelse(is.na(water_enhanced$do_mg_l), "Unknown",
 # 5. Time variables
 water_enhanced$month <- format(water_enhanced$date, "%B")  # Full month name
 water_enhanced$day_of_year <- as.integer(format(water_enhanced$date, "%j"))
-water_enhanced$days_since_start <- as.numeric(
-  difftime(water_enhanced$date, min(water_enhanced$date, na.rm = TRUE),
-           units = "days"))
+
+# Days since start of monitoring (broken into steps)
+# Step 1: Find the earliest date in the dataset
+start_date <- min(water_enhanced$date, na.rm = TRUE)
+
+# Step 2: Calculate the difference between each date and the start date
+date_difference <- difftime(water_enhanced$date, start_date, units = "days")
+
+# Step 3: Convert to numeric (removes the "days" label)
+water_enhanced$days_since_start <- as.numeric(date_difference)
 
 # 6. Temperature Z-score
 temp_mean <- mean(water_enhanced$temp_c, na.rm = TRUE)
@@ -230,17 +250,33 @@ str(water_enhanced)
 # ==============================================================================
 cat("\n--- Exercise 6 ---\n")
 
+# First, define helper functions for clarity
+# These make the aggregate() and ave() calls easier to read
+mean_na_rm <- function(x) {
+  mean(x, na.rm = TRUE)
+}
+
+max_na_rm <- function(x) {
+  max(x, na.rm = TRUE)
+}
+
+prop_below_6 <- function(x) {
+  # Calculate proportion of values below 6.0
+  mean(x < 6.0, na.rm = TRUE)
+}
+
+rank_descending <- function(x) {
+  # Rank values so highest value gets rank 1
+  rank(-x, na.last = "keep")
+}
+
 # Part 1: Station summary report using aggregate
-mean_temp <- aggregate(temp_c ~ station, data = water_enhanced,
-                       FUN = function(x) mean(x, na.rm = TRUE))
-mean_do <- aggregate(do_mg_l ~ station, data = water_enhanced,
-                     FUN = function(x) mean(x, na.rm = TRUE))
-max_turb <- aggregate(turbidity_ntu ~ station, data = water_enhanced,
-                      FUN = function(x) max(x, na.rm = TRUE))
-n_obs <- aggregate(temp_c ~ station, data = water_enhanced,
-                   FUN = length)
-prop_stressed <- aggregate(do_mg_l ~ station, data = water_enhanced,
-                           FUN = function(x) mean(x < 6.0, na.rm = TRUE))
+# aggregate() splits data by group and applies a function to each group
+mean_temp <- aggregate(temp_c ~ station, data = water_enhanced, FUN = mean_na_rm)
+mean_do <- aggregate(do_mg_l ~ station, data = water_enhanced, FUN = mean_na_rm)
+max_turb <- aggregate(turbidity_ntu ~ station, data = water_enhanced, FUN = max_na_rm)
+n_obs <- aggregate(temp_c ~ station, data = water_enhanced, FUN = length)
+prop_stressed <- aggregate(do_mg_l ~ station, data = water_enhanced, FUN = prop_below_6)
 
 # Combine into one data frame
 station_summary <- data.frame(
@@ -256,16 +292,21 @@ print("Station Summary:")
 print(station_summary)
 
 # Part 2: Station-relative analysis using ave()
-water_enhanced$station_mean_temp <- ave(water_enhanced$temp_c,
-                                         water_enhanced$station,
-                                         FUN = function(x) mean(x, na.rm = TRUE))
+# ave() applies a function to groups but returns a vector the same length as input
+# (unlike aggregate which collapses to one row per group)
+water_enhanced$station_mean_temp <- ave(
+  water_enhanced$temp_c,
+  water_enhanced$station,
+  FUN = mean_na_rm
+)
 
-water_enhanced$temp_vs_station <- water_enhanced$temp_c -
-                                   water_enhanced$station_mean_temp
+water_enhanced$temp_vs_station <- water_enhanced$temp_c - water_enhanced$station_mean_temp
 
-water_enhanced$station_do_rank <- ave(water_enhanced$do_mg_l,
-                                       water_enhanced$station,
-                                       FUN = function(x) rank(-x, na.last = "keep"))
+water_enhanced$station_do_rank <- ave(
+  water_enhanced$do_mg_l,
+  water_enhanced$station,
+  FUN = rank_descending
+)
 
 print("Station Relative Data (first few rows):")
 print(head(water_enhanced[, c("station", "temp_c", "temp_vs_station", "station_do_rank")]))
@@ -330,10 +371,22 @@ long_df <- data.frame(
   value = stacked$values
 )
 
-# Step 2: Split the name column
+# Step 2: Split the name column into variable and month
 parts <- strsplit(long_df$name, "_")
-long_df$variable <- sapply(parts, "[", 1)  # First part (do, temp)
-long_df$month <- sapply(parts, "[", 2)     # Second part (jun, jul)
+
+# APPROACH A: Using a for loop (explicit, step-by-step)
+long_df$variable <- character(nrow(long_df))
+long_df$month <- character(nrow(long_df))
+
+for (i in 1:nrow(long_df)) {
+  long_df$variable[i] <- parts[[i]][1]  # First part (do, temp)
+  long_df$month[i] <- parts[[i]][2]     # Second part (jun, jul)
+}
+
+# APPROACH B: Using sapply (compact, same result)
+# sapply(parts, "[", 1) extracts the 1st element from each list item
+# long_df$variable <- sapply(parts, "[", 1)
+# long_df$month <- sapply(parts, "[", 2)
 
 # Step 3: Reshape to wide format
 water_tidy <- reshape(long_df[, c("station", "month", "variable", "value")],
@@ -483,8 +536,8 @@ cat("\n--- Exercise 10 ---\n")
 stations <- unique(water_enhanced$station)
 for (st in stations) {
   st_data <- water_enhanced[water_enhanced$station == st, ]
-  mean_t <- mean(st_data$temp_c, na.rm = TRUE)
-  cat(paste("Station", st, ": Mean temperature =", round(mean_t, 2), "C\n"))
+  mean_temp <- mean(st_data$temp_c, na.rm = TRUE)
+  print(paste("Station", st, ": Mean temperature =", round(mean_temp, 2), "C"))
 }
 
 # Part 2: Accumulating results
@@ -508,19 +561,28 @@ print(all_summaries)
 
 # Part 3: Simulation with While Loop
 cat("Running Hypoxia Simulation...\n")
-run_simulation <- function() {
+
+do_level <- 8.0
+days <- 0
+
+while (do_level >= 2.0) {
+  do_level <- do_level - runif(1, 0.1, 0.5)
+  days <- days + 1
+}
+
+print(paste("Days to critical hypoxia:", days))
+
+# Run simulation 5 times to see variability
+set.seed(NULL)  # Reset random seed
+for (run in 1:5) {
   do_level <- 8.0
   days <- 0
   while (do_level >= 2.0) {
     do_level <- do_level - runif(1, 0.1, 0.5)
     days <- days + 1
   }
-  return(days)
+  print(paste("Run", run, ":", days, "days"))
 }
-
-# Run 5 times
-sim_results <- replicate(5, run_simulation())
-cat("Days to hypoxia in 5 simulations:", paste(sim_results, collapse = ", "), "\n")
 
 # Part 4: Two ways to iterate — for loop vs lapply
 # Both approaches produce the exact same result.

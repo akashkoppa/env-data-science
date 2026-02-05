@@ -75,7 +75,7 @@ print("\n--- Exercise 2 ---")
 
 # Import with explicit handling of NAs
 water_data = pd.read_csv(
-    "/Users/akashkoppa/Documents/teaching/env-data-science/Lectures/water_quality.csv",
+    "/Users/akashkoppa/Documents/teaching/env-data-science/Lectures/Data/02_Algorithms/water_quality.csv",
     na_values=["", "NA", "N/A", "-999", "-9999"]
 )
 
@@ -211,9 +211,14 @@ water_enhanced["month"] = water_enhanced["date"].dt.month_name()
 water_enhanced["day_of_year"] = water_enhanced["date"].dt.day_of_year
 
 # 6. Days since start of monitoring
-water_enhanced["days_since_start"] = (
-    water_enhanced["date"] - water_enhanced["date"].min()
-).dt.days
+# Step 1: Find the earliest date in the dataset
+start_date = water_enhanced["date"].min()
+
+# Step 2: Calculate the difference between each date and the start date
+date_difference = water_enhanced["date"] - start_date
+
+# Step 3: Extract just the number of days from the difference
+water_enhanced["days_since_start"] = date_difference.dt.days
 
 # 7. Temperature Z-score
 temp_mean = water_enhanced["temp_c"].mean()
@@ -230,43 +235,74 @@ print(water_enhanced.head())
 print("\n--- Exercise 6 ---")
 
 # Part 1: Station summary report
-station_summary = water_enhanced.groupby("station", observed=True).agg(
+
+# Step 1: Group the data by station
+grouped = water_enhanced.groupby("station", observed=True)
+
+# Step 2: Calculate summary statistics for each group
+station_summary = grouped.agg(
     mean_temp=("temp_c", "mean"),
     mean_do=("do_mg_l", "mean"),
     max_turbidity=("turbidity_ntu", "max"),
     n_obs=("temp_c", "count"),
-).reset_index()
-
-# Proportion of stressed readings (DO < 6)
-prop_stressed = (
-    water_enhanced.groupby("station", observed=True)["do_mg_l"]
-    .apply(lambda x: (x < 6).mean())
-    .reset_index(name="prop_stressed")
 )
 
+# Step 3: Convert the index (station) back to a regular column
+station_summary = station_summary.reset_index()
+
+# Proportion of stressed readings (DO < 6)
+
+# Step 1: Create a boolean column marking stressed readings
+water_enhanced["is_stressed"] = water_enhanced["do_mg_l"] < 6
+
+# Step 2: Group the data by station
+grouped = water_enhanced.groupby("station", observed=True)
+
+# Step 3: Select the is_stressed column from each group
+stressed_by_station = grouped["is_stressed"]
+
+# Step 4: Calculate the mean of each group
+#         The mean of a boolean column = proportion of True values
+#         (since True=1 and False=0, mean gives us count_true / total)
+prop_stressed = stressed_by_station.mean()
+
+# Step 5: Convert the result from a Series to a DataFrame
+prop_stressed = prop_stressed.reset_index()
+
+# Step 6: Rename the column to something descriptive
+prop_stressed.columns = ["station", "prop_stressed"]
+
+# Step 7: Merge the proportion back into station_summary
 station_summary = station_summary.merge(prop_stressed, on="station")
 
 print("Station Summary:")
 print(station_summary)
 
 # Part 2: Station-relative analysis using transform
-water_enhanced["station_mean_temp"] = water_enhanced.groupby(
-    "station", observed=True
-)["temp_c"].transform("mean")
+# transform() applies a function to each group and returns a Series
+# with the same index as the original DataFrame
 
-water_enhanced["temp_vs_station"] = (
-    water_enhanced["temp_c"] - water_enhanced["station_mean_temp"]
-)
+# Step 1: Group by station
+grouped_by_station = water_enhanced.groupby("station", observed=True)
 
-water_enhanced["station_do_rank"] = water_enhanced.groupby(
-    "station", observed=True
-)["do_mg_l"].rank(ascending=False)
+# Step 2: Get the temperature column from each group
+temp_by_station = grouped_by_station["temp_c"]
 
+# Step 3: Calculate the mean for each group (result has same length as original)
+water_enhanced["station_mean_temp"] = temp_by_station.transform("mean")
+
+# Step 4: Calculate how each reading differs from its station's mean
+water_enhanced["temp_vs_station"] = water_enhanced["temp_c"] - water_enhanced["station_mean_temp"]
+
+# Step 5: Rank DO values within each station (highest = rank 1)
+do_by_station = grouped_by_station["do_mg_l"]
+water_enhanced["station_do_rank"] = do_by_station.rank(ascending=False)
+
+# Display results
 print("Station Relative Data:")
-print(
-    water_enhanced[["station", "temp_c", "temp_vs_station", "station_do_rank"]]
-    .head()
-)
+columns_to_show = ["station", "temp_c", "temp_vs_station", "station_do_rank"]
+result_preview = water_enhanced[columns_to_show]
+print(result_preview.head())
 
 
 # ==============================================================================
@@ -294,9 +330,16 @@ print("Long Format:")
 print(temps_long)
 
 # Part 2: Pivot back to wide (stations as columns)
+
+# Step 1: Pivot the data (month becomes index, stations become columns)
 temps_wide_again = temps_long.pivot(
-    index="month", columns="station", values="temperature"
-).reset_index()
+    index="month",
+    columns="station",
+    values="temperature"
+)
+
+# Step 2: Convert the index (month) back to a regular column
+temps_wide_again = temps_wide_again.reset_index()
 
 print("Wide Format (Stations as columns):")
 print(temps_wide_again)
@@ -321,9 +364,12 @@ water_tidy = long_df.pivot_table(
     index=["station", "month"],
     columns="variable",
     values="value",
-).reset_index()
+)
 
-# Flatten column names
+# Step 4: Convert the index back to regular columns
+water_tidy = water_tidy.reset_index()
+
+# Step 5: Remove the "variable" label from the column names
 water_tidy.columns.name = None
 
 print("Tidied Multi-variable Data:")
@@ -371,7 +417,11 @@ nutrient_data = pd.DataFrame({
 # Merge by both station and date
 combined = pd.merge(water_data, nutrient_data, on=["station", "date"], how="left")
 print(f"Combined rows: {len(combined)}")
-print(f"Rows with nutrient data: {combined['nitrogen_mg_l'].notna().sum()}")
+
+# Count how many rows have nutrient data (not missing)
+has_nutrient_data = combined["nitrogen_mg_l"].notna()
+rows_with_nutrients = has_nutrient_data.sum()
+print(f"Rows with nutrient data: {rows_with_nutrients}")
 
 # Part 3: Stacking datasets
 # Simulate a second batch with same columns
@@ -492,37 +542,40 @@ def run_simulation():
         days += 1
     return days
 
-# Run 5 times
-sim_results = [run_simulation() for _ in range(5)]
+# Run the simulation 5 times using a for loop
+sim_results = []
+for i in range(5):
+    days = run_simulation()
+    sim_results.append(days)
+    print(f"  Run {i + 1}: {days} days")
+
 print(f"Days to hypoxia in 5 simulations: {sim_results}")
 
-# Part 4: Two ways to iterate — for loop vs list comprehension
-# Both approaches produce the exact same result.
+# Part 4: Building a summary table with a for loop
+# This is the same pattern as Part 2, showing how to accumulate results
 
-# Approach A: For loop (explicit, step-by-step — the algorithmic way)
-results_loop = []
+results = []
+
 for st in stations:
+    # Filter data for this station
     st_data = water_enhanced[water_enhanced["station"] == st]
-    results_loop.append({
-        "station": st,
-        "mean_do": st_data["do_mg_l"].mean(),
-        "n": len(st_data),
-    })
-final_loop = pd.DataFrame(results_loop)
 
-# Approach B: List comprehension (compact syntax — same logic, one expression)
-results_comp = [
-    {
+    # Calculate statistics
+    mean_do = st_data["do_mg_l"].mean()
+    n_obs = len(st_data)
+
+    # Create a dictionary with the results
+    station_result = {
         "station": st,
-        "mean_do": water_enhanced[water_enhanced["station"] == st]["do_mg_l"].mean(),
-        "n": len(water_enhanced[water_enhanced["station"] == st]),
+        "mean_do": mean_do,
+        "n": n_obs,
     }
-    for st in stations
-]
-final_comp = pd.DataFrame(results_comp)
 
-# Verify both give the same result
-print("For loop result:")
-print(final_loop)
-print("List comprehension result:")
-print(final_comp)
+    # Add to our list
+    results.append(station_result)
+
+# Convert list of dictionaries to a DataFrame
+final_results = pd.DataFrame(results)
+
+print("Station DO Summary:")
+print(final_results)

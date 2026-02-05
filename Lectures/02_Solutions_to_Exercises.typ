@@ -113,10 +113,55 @@ is_hypoxic <- do_readings < 5.0
 hypoxic_count <- sum(is_hypoxic)
 
 # 5. Position finding
-lowest_pos <- which.min(do_readings)
+lowest_do_pos <- which.min(do_readings)
 
 # 6. Temperature comparison
 jul_diff <- monthly_temps["Jul"] - mean(monthly_temps)
+```)
+
+#section-title("(d) Python Code Solution")
+#code-box(```python
+import numpy as np
+
+# 1. Variables
+station_id = "CB-5.1"
+latitude = 38.9784
+longitude = -76.3811
+sampling_depth = 2
+is_active = True
+
+# 2. Arrays/lists for readings
+do_readings = np.array([8.2, 7.8, 7.1, 6.4, 5.8, 5.1, 4.2, 3.6, 3.1, 2.5])
+
+# Monthly temperatures with names (dictionary)
+monthly_temps = {
+    "Jan": 4.2, "Feb": 4.5, "Mar": 8.1, "Apr": 12.5, "May": 17.3, "Jun": 22.1,
+    "Jul": 26.8, "Aug": 26.5, "Sep": 22.4, "Oct": 16.3, "Nov": 10.7, "Dec": 6.1
+}
+
+# 3. Statistics — first without built-in functions
+# Mean: sum of all values divided by the number of values
+do_mean_manual = sum(do_readings) / len(do_readings)
+
+# Standard deviation: square root of the average squared deviation from the mean
+do_sd_manual = (sum((do_readings - do_mean_manual) ** 2) / (len(do_readings) - 1)) ** 0.5
+
+# Now using built-in functions (same result)
+do_mean = np.mean(do_readings)
+do_sd = np.std(do_readings, ddof=1)  # ddof=1 for sample std dev (same as R)
+do_cv = (do_sd / do_mean) * 100
+
+# 4. Logical operations
+is_hypoxic = do_readings < 5.0
+hypoxic_count = np.sum(is_hypoxic)
+
+# 5. Position finding
+lowest_do_pos = np.argmin(do_readings)
+
+# 6. Temperature comparison
+temps_array = np.array(list(monthly_temps.values()))
+annual_mean_temp = np.mean(temps_array)
+jul_diff = monthly_temps["Jul"] - annual_mean_temp
 ```)
 
 #pagebreak()
@@ -173,6 +218,29 @@ sum(is.na(water_data$do_mg_l))
 sum(is.na(water_data$temp_c))
 ```)
 
+#section-title("(d) Python Code Solution")
+#code-box(```python
+import pandas as pd
+
+# Import with explicit handling of NAs
+water_data = pd.read_csv(
+    "water_quality.csv",
+    na_values=["", "NA", "N/A", "-999", "-9999"]
+)
+
+# Convert column types
+water_data["station"] = water_data["station"].astype("category")
+water_data["date"] = pd.to_datetime(water_data["date"])
+
+# Inspect structure
+print(water_data.dtypes)
+print(water_data.info())
+
+# Count NAs
+na_do = water_data["do_mg_l"].isna().sum()
+na_temp = water_data["temp_c"].isna().sum()
+```)
+
 #pagebreak()
 
 // =============================================================================
@@ -211,12 +279,27 @@ DISPLAY invalid_rows
 str(water_data)
 summary(water_data)
 
-# Missing data summary using sapply
-na_counts <- sapply(water_data, function(x) sum(is.na(x)))
-na_percent <- sapply(water_data, function(x) mean(is.na(x)) * 100)
-data.frame(variable = names(na_counts),
-           na_count = na_counts,
-           na_percent = round(na_percent, 2))
+# Missing data summary
+# APPROACH A: Using a for loop (explicit, step-by-step)
+na_counts <- c()
+na_percent <- c()
+
+for (col_name in names(water_data)) {
+  col_data <- water_data[[col_name]]
+  na_counts[col_name] <- sum(is.na(col_data))
+  na_percent[col_name] <- mean(is.na(col_data)) * 100
+}
+
+missing_summary <- data.frame(
+  variable = names(na_counts),
+  na_count = na_counts,
+  na_percent = round(na_percent, 2)
+)
+
+# APPROACH B: Using sapply (compact, same result)
+# sapply applies a function to each column and returns a vector
+na_counts_v2 <- sapply(water_data, function(x) sum(is.na(x)))
+na_percent_v2 <- sapply(water_data, function(x) mean(is.na(x)) * 100)
 
 # Validation check using logical indexing
 invalid_condition <- (water_data$temp_c < 0 | water_data$temp_c > 35) |
@@ -226,7 +309,38 @@ invalid_condition <- (water_data$temp_c < 0 | water_data$temp_c > 35) |
 # Handle NAs in conditions (replace NA with FALSE)
 invalid_condition[is.na(invalid_condition)] <- FALSE
 
-invalid_data <- water_data[invalid_condition, ]
+invalid_rows <- water_data[invalid_condition, ]
+print(invalid_rows)
+```)
+
+#section-title("(d) Python Code Solution")
+#code-box(```python
+# 1. Inspect structure
+print(water_data.describe())
+print(f"Shape: {water_data.shape}")
+print(f"Columns: {list(water_data.columns)}")
+
+# 2. Missing data summary
+na_counts = water_data.isna().sum()
+na_percent = water_data.isna().mean() * 100
+missing_summary = pd.DataFrame({
+    "na_count": na_counts,
+    "na_percent": na_percent.round(2)
+})
+print(missing_summary)
+
+# 3 & 4. Validation checks (Plausible ranges)
+# Temp: 0-35, DO: 0-15, pH: 6-9
+invalid_condition = (
+    (water_data["temp_c"] < 0) | (water_data["temp_c"] > 35) |
+    (water_data["do_mg_l"] < 0) | (water_data["do_mg_l"] > 15) |
+    (water_data["ph"] < 6) | (water_data["ph"] > 9)
+)
+
+# Replace NaN in condition with False
+invalid_condition = invalid_condition.fillna(False)
+
+invalid_data = water_data[invalid_condition]
 print(invalid_data)
 ```)
 
@@ -298,6 +412,44 @@ researcher_req <- researcher_req[, c("station", "date", "temp_c", "do_mg_l")]
 names(researcher_req)[names(researcher_req) == "do_mg_l"] <- "dissolved_oxygen"
 ```)
 
+#section-title("(d) Python Code Solution")
+#code-box(```python
+# Request 1: Fisheries Biologist
+# July 23rd, DO < 6.0 OR Turbidity > 15
+
+# Step 1: Filter by date
+fisheries_req = water_data[water_data["date"] == "2025-07-23"]
+
+# Step 2: Filter by DO or turbidity condition
+condition = (fisheries_req["do_mg_l"] < 6.0) | (fisheries_req["turbidity_ntu"] > 15)
+condition = condition.fillna(False)
+fisheries_req = fisheries_req[condition]
+
+# Step 3: Select columns
+fisheries_req = fisheries_req[["station", "date", "do_mg_l", "turbidity_ntu"]]
+
+# Step 4: Sort by DO ascending
+fisheries_req = fisheries_req.sort_values("do_mg_l")
+
+# Request 2: Researcher
+# Stations CB-5.1 OR CB-5.2, Temp 24-26, DO not missing
+
+# Step 1: Filter by station
+researcher_req = water_data[water_data["station"].isin(["CB-5.1", "CB-5.2"])]
+
+# Step 2: Filter by temperature range
+researcher_req = researcher_req[
+    (researcher_req["temp_c"] >= 24) & (researcher_req["temp_c"] <= 26)
+]
+
+# Step 3: Remove rows with missing DO
+researcher_req = researcher_req[researcher_req["do_mg_l"].notna()]
+
+# Step 4: Select and rename columns
+researcher_req = researcher_req[["station", "date", "temp_c", "do_mg_l"]]
+researcher_req = researcher_req.rename(columns={"do_mg_l": "dissolved_oxygen"})
+```)
+
 #pagebreak()
 
 // =============================================================================
@@ -355,15 +507,66 @@ water_enhanced$do_status <- ifelse(is.na(water_enhanced$do_mg_l), "Unknown",
 water_enhanced$month <- format(water_enhanced$date, "%B")  # Full month name
 water_enhanced$day_of_year <- as.integer(format(water_enhanced$date, "%j"))
 
-# Days since start of monitoring
-water_enhanced$days_since_start <- as.numeric(
-  difftime(water_enhanced$date, min(water_enhanced$date, na.rm = TRUE),
-           units = "days"))
+# Days since start of monitoring (broken into steps)
+# Step 1: Find the earliest date in the dataset
+start_date <- min(water_enhanced$date, na.rm = TRUE)
+
+# Step 2: Calculate the difference between each date and the start date
+date_difference <- difftime(water_enhanced$date, start_date, units = "days")
+
+# Step 3: Convert to numeric (removes the "days" label)
+water_enhanced$days_since_start <- as.numeric(date_difference)
 
 # Temperature z-score
 temp_mean <- mean(water_enhanced$temp_c, na.rm = TRUE)
 temp_sd <- sd(water_enhanced$temp_c, na.rm = TRUE)
 water_enhanced$temp_zscore <- (water_enhanced$temp_c - temp_mean) / temp_sd
+```)
+
+#section-title("(d) Python Code Solution")
+#code-box(```python
+import numpy as np
+
+# Make a copy to avoid modifying original
+water_enhanced = water_data.copy()
+
+# 1. Temperature in Fahrenheit
+water_enhanced["temp_f"] = water_enhanced["temp_c"] * 9/5 + 32
+
+# 2. DO Percent Saturation (simplified)
+water_enhanced["do_percent_sat"] = (water_enhanced["do_mg_l"] / 8.0) * 100
+
+# 3. Log Turbidity
+water_enhanced["log_turbidity"] = np.log(water_enhanced["turbidity_ntu"])
+
+# 4. Water Quality Status using np.select
+conditions = [
+    water_enhanced["do_mg_l"].isna(),
+    water_enhanced["do_mg_l"] < 2.0,
+    water_enhanced["do_mg_l"] < 5.0,
+    water_enhanced["do_mg_l"] < 8.0,
+]
+choices = ["Unknown", "Hypoxic", "Stressed", "Adequate"]
+water_enhanced["do_status"] = np.select(conditions, choices, default="Healthy")
+
+# 5. Time variables
+water_enhanced["month"] = water_enhanced["date"].dt.month_name()
+water_enhanced["day_of_year"] = water_enhanced["date"].dt.day_of_year
+
+# 6. Days since start of monitoring
+# Step 1: Find the earliest date in the dataset
+start_date = water_enhanced["date"].min()
+
+# Step 2: Calculate the difference between each date and the start date
+date_difference = water_enhanced["date"] - start_date
+
+# Step 3: Extract just the number of days from the difference
+water_enhanced["days_since_start"] = date_difference.dt.days
+
+# 7. Temperature Z-score
+temp_mean = water_enhanced["temp_c"].mean()
+temp_sd = water_enhanced["temp_c"].std()
+water_enhanced["temp_zscore"] = (water_enhanced["temp_c"] - temp_mean) / temp_sd
 ```)
 
 #pagebreak()
@@ -401,19 +604,33 @@ data$rank = AVE(do, station, FUN = function(x) RANK(-x))
 
 #section-title("(c) R Code Solution")
 #code-box(```r
-# Part 1: Summary Report using aggregate
-# Note: aggregate can only apply one function at a time, so we do multiple calls
+# First, define helper functions for clarity
+# These make the aggregate() and ave() calls easier to read
+mean_na_rm <- function(x) {
+  mean(x, na.rm = TRUE)
+}
 
-mean_temp <- aggregate(temp_c ~ station, data = water_enhanced,
-                       FUN = function(x) mean(x, na.rm = TRUE))
-mean_do <- aggregate(do_mg_l ~ station, data = water_enhanced,
-                     FUN = function(x) mean(x, na.rm = TRUE))
-max_turb <- aggregate(turbidity_ntu ~ station, data = water_enhanced,
-                      FUN = function(x) max(x, na.rm = TRUE))
-n_obs <- aggregate(temp_c ~ station, data = water_enhanced,
-                   FUN = length)
-prop_stressed <- aggregate(do_mg_l ~ station, data = water_enhanced,
-                           FUN = function(x) mean(x < 6.0, na.rm = TRUE))
+max_na_rm <- function(x) {
+  max(x, na.rm = TRUE)
+}
+
+prop_below_6 <- function(x) {
+  # Calculate proportion of values below 6.0
+  mean(x < 6.0, na.rm = TRUE)
+}
+
+rank_descending <- function(x) {
+  # Rank values so highest value gets rank 1
+  rank(-x, na.last = "keep")
+}
+
+# Part 1: Summary Report using aggregate
+# aggregate() splits data by group and applies a function to each group
+mean_temp <- aggregate(temp_c ~ station, data = water_enhanced, FUN = mean_na_rm)
+mean_do <- aggregate(do_mg_l ~ station, data = water_enhanced, FUN = mean_na_rm)
+max_turb <- aggregate(turbidity_ntu ~ station, data = water_enhanced, FUN = max_na_rm)
+n_obs <- aggregate(temp_c ~ station, data = water_enhanced, FUN = length)
+prop_stressed <- aggregate(do_mg_l ~ station, data = water_enhanced, FUN = prop_below_6)
 
 # Combine into one data frame
 station_summary <- data.frame(
@@ -426,16 +643,84 @@ station_summary <- data.frame(
 )
 
 # Part 2: Relative Analysis using ave()
-water_enhanced$station_mean_temp <- ave(water_enhanced$temp_c,
-                                         water_enhanced$station,
-                                         FUN = function(x) mean(x, na.rm = TRUE))
+# ave() applies a function to groups but returns a vector the same length as input
+water_enhanced$station_mean_temp <- ave(
+  water_enhanced$temp_c,
+  water_enhanced$station,
+  FUN = mean_na_rm
+)
 
-water_enhanced$temp_vs_station <- water_enhanced$temp_c -
-                                   water_enhanced$station_mean_temp
+water_enhanced$temp_vs_station <- water_enhanced$temp_c - water_enhanced$station_mean_temp
 
-water_enhanced$station_do_rank <- ave(water_enhanced$do_mg_l,
-                                       water_enhanced$station,
-                                       FUN = function(x) rank(-x, na.last = "keep"))
+water_enhanced$station_do_rank <- ave(
+  water_enhanced$do_mg_l,
+  water_enhanced$station,
+  FUN = rank_descending
+)
+```)
+
+#section-title("(d) Python Code Solution")
+#code-box(```python
+# Part 1: Station summary report
+
+# Step 1: Group the data by station
+grouped = water_enhanced.groupby("station", observed=True)
+
+# Step 2: Calculate summary statistics for each group
+station_summary = grouped.agg(
+    mean_temp=("temp_c", "mean"),
+    mean_do=("do_mg_l", "mean"),
+    max_turbidity=("turbidity_ntu", "max"),
+    n_obs=("temp_c", "count"),
+)
+
+# Step 3: Convert the index (station) back to a regular column
+station_summary = station_summary.reset_index()
+
+# Proportion of stressed readings (DO < 6)
+
+# Step 1: Create a boolean column marking stressed readings
+water_enhanced["is_stressed"] = water_enhanced["do_mg_l"] < 6
+
+# Step 2: Group the data by station
+grouped = water_enhanced.groupby("station", observed=True)
+
+# Step 3: Select the is_stressed column from each group
+stressed_by_station = grouped["is_stressed"]
+
+# Step 4: Calculate the mean of each group
+#         The mean of a boolean column = proportion of True values
+#         (since True=1 and False=0, mean gives us count_true / total)
+prop_stressed = stressed_by_station.mean()
+
+# Step 5: Convert the result from a Series to a DataFrame
+prop_stressed = prop_stressed.reset_index()
+
+# Step 6: Rename the column to something descriptive
+prop_stressed.columns = ["station", "prop_stressed"]
+
+# Step 7: Merge the proportion back into station_summary
+station_summary = station_summary.merge(prop_stressed, on="station")
+
+# Part 2: Station-relative analysis using transform
+# transform() applies a function to each group and returns a Series
+# with the same index as the original DataFrame
+
+# Step 1: Group by station
+grouped_by_station = water_enhanced.groupby("station", observed=True)
+
+# Step 2: Get the temperature column from each group
+temp_by_station = grouped_by_station["temp_c"]
+
+# Step 3: Calculate the mean for each group (result has same length as original)
+water_enhanced["station_mean_temp"] = temp_by_station.transform("mean")
+
+# Step 4: Calculate how each reading differs from its station's mean
+water_enhanced["temp_vs_station"] = water_enhanced["temp_c"] - water_enhanced["station_mean_temp"]
+
+# Step 5: Rank DO values within each station (highest = rank 1)
+do_by_station = grouped_by_station["do_mg_l"]
+water_enhanced["station_do_rank"] = do_by_station.rank(ascending=False)
 ```)
 
 #pagebreak()
@@ -499,6 +784,14 @@ temps_long_v2 <- reshape(temps_wide,
   idvar = "station"
 )
 
+# Part 2: Long to Wide (stations as columns)
+temps_wide_again <- reshape(temps_long,
+  direction = "wide",
+  idvar = "month",
+  timevar = "station",
+  v.names = "temperature"
+)
+
 # Part 3: Complex Tidy
 water_wide <- data.frame(
   station = "CB-5.1",
@@ -514,10 +807,22 @@ long_df <- data.frame(
   value = stacked$values
 )
 
-# Step 2: Split the name column
+# Step 2: Split the name column into variable and month
 parts <- strsplit(long_df$name, "_")
-long_df$variable <- sapply(parts, "[", 1)  # First part (do, temp)
-long_df$month <- sapply(parts, "[", 2)     # Second part (jun, jul)
+
+# APPROACH A: Using a for loop (explicit, step-by-step)
+long_df$variable <- character(nrow(long_df))
+long_df$month <- character(nrow(long_df))
+
+for (i in 1:nrow(long_df)) {
+  long_df$variable[i] <- parts[[i]][1]  # First part (do, temp)
+  long_df$month[i] <- parts[[i]][2]     # Second part (jun, jul)
+}
+
+# APPROACH B: Using sapply (compact, same result)
+# sapply(parts, "[", 1) extracts the 1st element from each list item
+# long_df$variable <- sapply(parts, "[", 1)
+# long_df$month <- sapply(parts, "[", 2)
 
 # Step 3: Reshape to wide format
 water_tidy <- reshape(long_df[, c("station", "month", "variable", "value")],
@@ -527,6 +832,65 @@ water_tidy <- reshape(long_df[, c("station", "month", "variable", "value")],
   v.names = "value"
 )
 names(water_tidy) <- gsub("value\\.", "", names(water_tidy))
+```)
+
+#section-title("(d) Python Code Solution")
+#code-box(```python
+# Part 1: Wide to Long using melt
+temps_wide = pd.DataFrame({
+    "station": ["CB-5.1", "CB-5.2"],
+    "jan": [4.2, 3.8],
+    "apr": [12.5, 11.9],
+    "jul": [26.8, 27.1],
+    "oct": [16.3, 15.8],
+})
+
+temps_long = pd.melt(
+    temps_wide,
+    id_vars="station",
+    var_name="month",
+    value_name="temperature",
+)
+
+# Part 2: Pivot back to wide (stations as columns)
+
+# Step 1: Pivot the data (month becomes index, stations become columns)
+temps_wide_again = temps_long.pivot(
+    index="month",
+    columns="station",
+    values="temperature"
+)
+
+# Step 2: Convert the index (month) back to a regular column
+temps_wide_again = temps_wide_again.reset_index()
+
+# Part 3: Multi-variable Tidying
+water_wide = pd.DataFrame({
+    "station": ["CB-5.1"],
+    "do_jun": [6.8],
+    "do_jul": [5.2],
+    "temp_jun": [24.5],
+    "temp_jul": [26.8],
+})
+
+# Step 1: Melt to long format
+long_df = pd.melt(water_wide, id_vars="station", var_name="name", value_name="value")
+
+# Step 2: Split the name column into variable and month
+long_df[["variable", "month"]] = long_df["name"].str.split("_", expand=True)
+
+# Step 3: Pivot so variable becomes separate columns
+water_tidy = long_df.pivot_table(
+    index=["station", "month"],
+    columns="variable",
+    values="value",
+)
+
+# Step 4: Convert the index back to regular columns
+water_tidy = water_tidy.reset_index()
+
+# Step 5: Remove the "variable" label from the column names
+water_tidy.columns.name = None
 ```)
 
 #pagebreak()
@@ -618,6 +982,52 @@ cat("Original rows:", nrow(water_data), "\n")
 cat("Batch 2 rows:", nrow(batch2), "\n")
 cat("Stacked rows:", nrow(stacked), "\n")
 cat("Verified:", nrow(stacked) == nrow(water_data) + nrow(batch2), "\n")
+```)
+
+#section-title("(d) Python Code Solution")
+#code-box(```python
+# Part 1: Create station metadata
+station_meta = pd.DataFrame({
+    "station": ["CB-5.1", "CB-5.2", "CB-5.3", "CB-6.1"],
+    "region": ["Main Stem", "Main Stem", "Main Stem", "Lower Bay"],
+    "type": ["Fixed", "Fixed", "Fixed", "Rotating"],
+    "lat": [38.978, 38.856, 38.742, 37.587],
+    "lon": [-76.381, -76.372, -76.321, -76.138],
+})
+
+# Inner join: only stations present in BOTH datasets
+merged_inner = pd.merge(water_data, station_meta, on="station")
+print(f"Inner join rows: {len(merged_inner)}")
+
+# Left join: keep all water quality rows
+merged_left = pd.merge(water_data, station_meta, on="station", how="left")
+print(f"Left join rows: {len(merged_left)}")
+
+# Which stations are in metadata but not in water quality data?
+wq_stations = set(water_data["station"].unique())
+meta_stations = set(station_meta["station"])
+missing_from_wq = meta_stations - wq_stations
+missing_from_meta = wq_stations - meta_stations
+
+# Part 2: Nutrient data merge
+nutrient_data = pd.DataFrame({
+    "station": ["CB-5.1", "CB-5.2", "CB-6.1"],
+    "date": pd.to_datetime(["2025-06-15", "2025-06-15", "2025-06-15"]),
+    "nitrogen_mg_l": [1.2, 1.5, 0.9],
+    "phosphorus_mg_l": [0.08, 0.12, 0.06],
+})
+
+# Merge by both station and date
+combined = pd.merge(water_data, nutrient_data, on=["station", "date"], how="left")
+
+# Count how many rows have nutrient data (not missing)
+has_nutrient_data = combined["nitrogen_mg_l"].notna()
+rows_with_nutrients = has_nutrient_data.sum()
+
+# Part 3: Stacking datasets
+batch2 = water_data.head(5).copy()
+stacked = pd.concat([water_data, batch2], ignore_index=True)
+print(f"Verified: {len(stacked) == len(water_data) + len(batch2)}")
 ```)
 
 #pagebreak()
@@ -724,6 +1134,56 @@ summarize_station <- function(data, station_id) {
 }
 ```)
 
+#section-title("(d) Python Code Solution")
+#code-box(```python
+import pandas as pd
+
+# 1. Temperature Conversion
+def celsius_to_fahrenheit(temp_c):
+    return temp_c * 9/5 + 32
+
+def fahrenheit_to_celsius(temp_f):
+    return (temp_f - 32) * 5/9
+
+# Test: round-trip conversion
+print(f"Round-trip: {fahrenheit_to_celsius(celsius_to_fahrenheit(25))}")
+
+# 2. Saturation Deficit
+def calc_saturation_deficit(do_measured, temperature):
+    do_saturated = 14.62 - (0.3898 * temperature)
+    deficit = do_saturated - do_measured
+    return deficit
+
+# 3. Water Quality Classifier
+def classify_water_quality(do, temp, hypoxic_threshold=2.0, stress_threshold=5.0):
+    if pd.isna(do) or pd.isna(temp):
+        return "Unknown"
+    if do < hypoxic_threshold:
+        return "Critical"
+    elif do < stress_threshold:
+        return "Stressed"
+    elif temp > 28:
+        return "Heat Stress"
+    else:
+        return "Good"
+
+# 4. Station Summarizer
+def summarize_station(data, station_id):
+    st_data = data[data["station"] == station_id]
+
+    if len(st_data) == 0:
+        print(f"Warning: Station {station_id} not found in data")
+        return None
+
+    return {
+        "station": station_id,
+        "mean_temp": st_data["temp_c"].mean(),
+        "mean_do": st_data["do_mg_l"].mean(),
+        "n_observations": len(st_data),
+        "hypoxic_count": (st_data["do_mg_l"] < 2.0).sum(),
+    }
+```)
+
 #pagebreak()
 
 // =============================================================================
@@ -789,8 +1249,8 @@ for (i in seq_along(stations)) {
 }
 
 # Combine list into single data frame
-final_results <- do.call(rbind, station_summaries)
-print(final_results)
+all_summaries <- do.call(rbind, station_summaries)
+print(all_summaries)
 ```)
 
 #pagebreak()
@@ -850,4 +1310,88 @@ final_lapply <- do.call(rbind, results_lapply)
 # Both produce the same result
 print(final_loop)
 print(final_lapply)
+```)
+
+#section-title("(d) Python Code Solution")
+
+#text(weight: "semibold", size: 9pt)[Parts 1 & 2: For loops]
+#code-box(```python
+import pandas as pd
+import random
+
+# Part 1: For loop with printing
+stations = water_enhanced["station"].unique()
+
+for st in stations:
+    st_data = water_enhanced[water_enhanced["station"] == st]
+    mean_temp = st_data["temp_c"].mean()
+    print(f"Station {st}: Mean temperature = {mean_temp:.2f} C")
+
+# Part 2: Accumulating results in a list
+station_summaries = []
+
+for st in stations:
+    st_data = water_enhanced[water_enhanced["station"] == st]
+
+    station_summaries.append({
+        "station": st,
+        "mean_temp": st_data["temp_c"].mean(),
+        "mean_do": st_data["do_mg_l"].mean(),
+        "count": len(st_data),
+    })
+
+# Convert list of dicts to DataFrame
+all_summaries = pd.DataFrame(station_summaries)
+print(all_summaries)
+```)
+
+#text(weight: "semibold", size: 9pt)[Part 3: While loop simulation]
+#code-box(```python
+def run_simulation():
+    do_level = 8.0
+    days = 0
+    while do_level >= 2.0:
+        do_level -= random.uniform(0.1, 0.5)
+        days += 1
+    return days
+
+# Run the simulation 5 times using a for loop
+sim_results = []
+for i in range(5):
+    days = run_simulation()
+    sim_results.append(days)
+    print(f"  Run {i + 1}: {days} days")
+
+print(f"Days to hypoxia in 5 simulations: {sim_results}")
+```)
+
+#text(weight: "semibold", size: 9pt)[Part 4: Building a summary table with a for loop]
+#code-box(```python
+# This is the same pattern as Part 2, showing how to accumulate results
+
+results = []
+
+for st in stations:
+    # Filter data for this station
+    st_data = water_enhanced[water_enhanced["station"] == st]
+
+    # Calculate statistics
+    mean_do = st_data["do_mg_l"].mean()
+    n_obs = len(st_data)
+
+    # Create a dictionary with the results
+    station_result = {
+        "station": st,
+        "mean_do": mean_do,
+        "n": n_obs,
+    }
+
+    # Add to our list
+    results.append(station_result)
+
+# Convert list of dictionaries to a DataFrame
+final_results = pd.DataFrame(results)
+
+print("Station DO Summary:")
+print(final_results)
 ```)
