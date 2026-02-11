@@ -135,7 +135,7 @@ For each exercise, follow this workflow:
 #v(0.5em)
 
 #focus-box(title: "Setup Required", color: warning-color)[
-  Before starting, ensure you have R and RStudio (or VS Code / Spyder) installed. If you wish to follow along in Python, install Python 3 with the `pandas` and `numpy` packages. These exercises intentionally use *base R* (and equivalent base Python / pandas) to help you understand algorithms. Later lectures will techniques for more concise data manipulation."
+  Before starting, ensure you have R and RStudio (or VS Code / Spyder) installed. If you wish to follow along in Python, install Python 3 with the `pandas` and `numpy` packages. These exercises intentionally use *base R* (and equivalent base Python / pandas) to help you understand algorithms. Later lectures will introduce techniques for more concise data manipulation."
 ]
 
 #pagebreak()
